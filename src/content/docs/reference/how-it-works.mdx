@@ -1,0 +1,56 @@
+---
+title: How verification works
+description: Where the data comes from, and why a verification result can be trusted.
+---
+
+Verification is deliberately simple: one registry, one record per credential, one
+public result.
+
+## The flow
+
+<Steps>
+
+<Step>
+
+### A record is created
+
+Staff add an EMT as a student, then **promote** them to graduate on
+certification. That publishes a single record — keyed by LCN — to the registry.
+
+</Step>
+
+<Step>
+
+### Anyone looks it up
+
+A verifier enters the LCN. The registry finds the one matching record and derives
+its current status — Verified, Expired, or Legacy.
+
+</Step>
+
+<Step>
+
+### The result reflects the registry
+
+The page shows exactly what's on file: profile, proficiency record, license card,
+and certificate — or a clear "no active credential" if nothing matches.
+
+</Step>
+
+</Steps>
+
+## Why it can be trusted
+
+- **Single source of record.** The public result is the same record staff
+  maintain — there's no separate, stale copy.
+- **Read-only and open.** Verification needs no account and can't be altered by
+  the person being checked.
+- **Live status.** Expiry and Legacy are derived at lookup time, so a result is
+  current the moment you load it.
+
+## What verification does not do
+
+It confirms a credential exists in the WSL EMS registry and shows its status. It
+doesn't vouch for anything outside that registry, and an expired or absent record
+means the credential isn't currently active here — see
+[Credential statuses](/docs/verify/statuses).

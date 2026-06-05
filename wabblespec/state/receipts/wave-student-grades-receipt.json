@@ -1,0 +1,29 @@
+{
+  "receipt_type": "wave",
+  "wave_id": "student-grades",
+  "wave_label": "Student Grading System",
+  "session_id": "sess-20260605-batch-refine",
+  "status": "PASS",
+  "timestamp": "2026-06-05T00:00:00.000Z",
+  "verification_mode": "Observation",
+  "verification_result": "PASS",
+  "outputs": [
+    "src/lib/student-grades.ts",
+    "src/lib/student.ts",
+    "prisma/schema.prisma",
+    "src/lib/validation.ts",
+    "src/app/dashboard/students/actions.ts",
+    "src/components/dashboard/student-form.tsx",
+    "src/app/dashboard/students/[id]/edit/page.tsx",
+    "src/app/dashboard/students/page.tsx",
+    "src/app/dashboard/students/[id]/page.tsx",
+    "src/lib/graduate.ts"
+  ],
+  "deviations_found": [
+    "isLegacyBatch threshold updated from <=5 to <=16 per user clarification: batches 16 and below had manually computed scores"
+  ],
+  "build_gate": "PASS — npx next build exited 0",
+  "lint_gate": "PASS — npx biome check --write fixed 4 files, no errors",
+  "schema_gate": "PASS — prisma db push: database already in sync",
+  "notes": "Student model: scoreSJE removed, granularGrades Json? used for Q1-Q10 raw quiz scores. Graduate model unchanged. rollupGraduateScores() converts raw student scores to graduate percentages at promotion time."
+}

@@ -1,0 +1,390 @@
+// Asclepius CMS — Prisma schema (MongoDB)
+// Domain: EMT license verification + CMS (graduates/students, blog, media).
+// Legacy-tolerant: older graduate records have lost data, so almost every
+// field on Graduate is optional. Only `lcn` is guaranteed.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Auth (BetterAuth) — model + field names follow BetterAuth conventions.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model User {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  name          String
+  email         String   @unique
+  emailVerified Boolean  @default(false)
+  image         String?
+  role          String   @default("writer") // "admin" | "writer" | "graduate"
+  graduateLcn   String? // for graduate accounts: the LCN they own
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  sessions Session[]
+  accounts Account[]
+  posts    BlogPost[]
+
+  @@map("user")
+}
+
+model Session {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  expiresAt DateTime
+  token     String   @unique
+  ipAddress String?
+  userAgent String?
+  userId    String   @db.ObjectId
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id @default(auto()) @map("_id") @db.ObjectId
+  accountId             String
+  providerId            String
+  userId                String    @db.ObjectId
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@map("account")
+}
+
+model Verification {
+  id         String    @id @default(auto()) @map("_id") @db.ObjectId
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime? @default(now())
+  updatedAt  DateTime? @updatedAt
+
+  @@map("verification")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Domain
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum GraduateStatus {
+  STUDENT // currently in training
+  GRADUATE // completed / licensed
+  ARCHIVED // hidden from public verification
+}
+
+enum PostStatus {
+  DRAFT
+  PUBLISHED
+}
+
+enum StudentStatus {
+  IN_TRAINING
+  GRADUATED
+  WITHDRAWN
+}
+
+model Batch {
+  id          String      @id @default(auto()) @map("_id") @db.ObjectId
+  code        String      @unique // "BATCH-09"
+  batchNumber String? // non-sequential integer as string, e.g. "19", "23"
+  label       String?
+  year        Int?
+  logo        MediaAsset? @relation(name: "BatchLogo", fields: [logoId], references: [id])
+  logoId      String?     @db.ObjectId
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  graduates   Graduate[]
+  students    Student[]
+
+  @@map("batch")
+}
+
+// Students are in training and have NO license number. On graduation their data
+// is transferred into a Graduate (with an assigned LCN). Separate collection.
+model Student {
+  id           String @id @default(auto()) @map("_id") @db.ObjectId
+  enrollmentNo String @unique // auto: "S-YYYY-####"
+
+  name       String? // denormalized display/search
+  firstName  String?
+  middleName String?
+  lastName   String?
+  suffix     String?
+
+  // Raw practical exam scores (not percentages).
+  // Q1–Q10 quiz scores are in granularGrades JSON.
+  // At graduation, rollupGraduateScores() converts these to percentages
+  // for the Graduate model.
+  scoreFWE       Float? // 0-1000  Final Written Exam
+  scoreEP        Float? // 0-100   Ambulance Equipment
+  scorePAS       Float? // 0-200   Patient Assessment Verbalization
+  scoreCCST      Float? // 0-100   Critical Case: Trauma
+  scoreCCSM      Float? // 0-100   Critical Case: Medical
+  granularGrades Json? // { q1..q10: number|null } — periodic quiz raw scores
+
+  status         StudentStatus @default(IN_TRAINING)
+  graduatedToLcn String? // set when promoted to a Graduate
+
+  photo   MediaAsset? @relation(fields: [photoId], references: [id])
+  photoId String?     @db.ObjectId
+
+  batch     Batch?  @relation(fields: [batchId], references: [id])
+  batchId   String? @db.ObjectId
+  batchCode String?
+
+  notes     String?
+  createdBy String?  @db.ObjectId
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([batchCode])
+  @@map("student")
+}
+
+model Graduate {
+  id  String @id @default(auto()) @map("_id") @db.ObjectId
+  lcn String @unique // License/Control Number — the only guaranteed field
+
+  name String? // denormalized display/search name (composed from parts when present)
+
+  // Structured name parts (all optional — legacy records may have only `name`).
+  firstName  String?
+  middleName String?
+  lastName   String?
+  suffix     String?
+
+  // Dates: kept as raw free-text (legacy formats vary) plus a best-effort parse.
+  issuedRaw       String?
+  issuedAt        DateTime?
+  expirationRaw   String?
+  expiresAt       DateTime?
+  registrationRaw String?
+  registeredAt    DateTime?
+
+  // Proficiency evaluation scores — frequently missing on legacy records.
+  scoreFWE  Float? // Final Written Examination (10%)
+  scoreSJE  Float? // Situational Judgement Examination (15%)
+  scoreEP   Float? // Equipment Proficiency (10%)
+  scorePAS  Float? // Patient Assessment Skills (15%)
+  scoreCCST Float? // Critical Case: Trauma (25%)
+  scoreCCSM Float? // Critical Case: Medical (25%)
+
+  ranking Int? // 0 = passed (no rank), 1/2/3 = podium rank
+
+  status GraduateStatus @default(GRADUATE)
+  legacy Boolean        @default(false) // true when the record is known-incomplete
+
+  fromStudentEnrollmentNo String? // provenance: the student this was promoted from
+
+  photo   MediaAsset? @relation(fields: [photoId], references: [id])
+  photoId String?     @db.ObjectId
+
+  batch     Batch?  @relation(fields: [batchId], references: [id])
+  batchId   String? @db.ObjectId
+  batchCode String? // denormalized batch code for legacy display
+
+  notes     String?
+  createdBy String?  @db.ObjectId
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([batchCode])
+  @@map("graduate")
+}
+
+model MediaAsset {
+  id          String     @id @default(auto()) @map("_id") @db.ObjectId
+  url         String // Vercel Blob public URL (kept for display)
+  pathname    String? // Blob pathname
+  contentHash String // SHA-256 of the file bytes (hex) — integrity / dedup
+  contentType String?
+  size        Int?
+  width       Int?
+  height      Int?
+  uploadedBy  String?    @db.ObjectId
+  createdAt   DateTime   @default(now())
+  graduates   Graduate[]
+  students    Student[]
+  batches     Batch[]    @relation(name: "BatchLogo")
+
+  @@index([contentHash])
+  @@map("media_asset")
+}
+
+model BlogPost {
+  id          String     @id @default(auto()) @map("_id") @db.ObjectId
+  slug        String     @unique
+  title       String
+  excerpt     String?
+  content     String // markdown
+  coverImage  String? // Blob URL
+  status      PostStatus @default(DRAFT)
+  authorId    String     @db.ObjectId
+  author      User       @relation(fields: [authorId], references: [id])
+  publishedAt DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([status])
+  @@map("blog_post")
+}
+
+// Lightweight record of public verification lookups, for dashboard analytics.
+model LookupEvent {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  lcn       String
+  found     Boolean
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@map("lookup_event")
+}
+
+enum InquiryStatus {
+  NEW
+  CONTACTED
+  CLOSED
+}
+
+// Public training/enrollment inquiries captured from the /enroll form.
+model Inquiry {
+  id        String        @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  email     String
+  phone     String?
+  program   String? // BLS | EMR | EMT | SPECIALIZED | GENERAL
+  message   String?
+  status    InquiryStatus @default(NEW)
+  createdAt DateTime      @default(now())
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("inquiry")
+}
+
+// Admin-curated graduate testimonials. Only approved ones render publicly.
+model Testimonial {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  batchCode String?
+  quote     String
+  rating    Int      @default(5)
+  approved  Boolean  @default(false)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([approved])
+  @@map("testimonial")
+}
+
+// Instructors / staff shown on the public homepage. Only published ones render.
+model TeamMember {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  role        String
+  credentials String?
+  photoUrl    String?
+  order       Int      @default(0)
+  published   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@index([published])
+  @@map("team_member")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LMS — continuing education for active graduates
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum CourseStatus {
+  DRAFT
+  PUBLISHED
+}
+
+model Course {
+  id          String       @id @default(auto()) @map("_id") @db.ObjectId
+  slug        String       @unique
+  title       String
+  summary     String?
+  coverImage  String?
+  status      CourseStatus @default(DRAFT)
+  createdBy   String?      @db.ObjectId
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  modules     Module[]
+  enrollments Enrollment[]
+
+  @@index([status])
+  @@map("course")
+}
+
+model Module {
+  id       String   @id @default(auto()) @map("_id") @db.ObjectId
+  courseId String   @db.ObjectId
+  course   Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  title    String
+  order    Int      @default(0)
+  lessons  Lesson[]
+
+  @@index([courseId])
+  @@map("course_module")
+}
+
+model Lesson {
+  id           String           @id @default(auto()) @map("_id") @db.ObjectId
+  moduleId     String           @db.ObjectId
+  module       Module           @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  title        String
+  content      String // markdown
+  order        Int              @default(0)
+  durationMins Int?
+  progress     LessonProgress[]
+
+  @@index([moduleId])
+  @@map("lesson")
+}
+
+model Enrollment {
+  id            String           @id @default(auto()) @map("_id") @db.ObjectId
+  graduateLcn   String // the graduate who enrolled
+  courseId      String           @db.ObjectId
+  course        Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  enrolledAt    DateTime         @default(now())
+  completedAt   DateTime?
+  certificateNo String? // CE certificate number, set on completion
+  progress      LessonProgress[]
+
+  @@unique([graduateLcn, courseId])
+  @@index([graduateLcn])
+  @@map("enrollment")
+}
+
+model LessonProgress {
+  id           String     @id @default(auto()) @map("_id") @db.ObjectId
+  enrollmentId String     @db.ObjectId
+  enrollment   Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  lessonId     String     @db.ObjectId
+  lesson       Lesson     @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  completedAt  DateTime   @default(now())
+
+  @@unique([enrollmentId, lessonId])
+  @@map("lesson_progress")
+}

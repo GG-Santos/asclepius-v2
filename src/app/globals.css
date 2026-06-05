@@ -1,26 +1,191 @@
 @import "tailwindcss";
+@import "fumadocs-ui/css/neutral.css";
+@import "fumadocs-ui/css/preset.css";
+@source "../../node_modules/fumadocs-ui/dist/**/*.js";
 
+/*
+ * Clinical Response System — design tokens (from DESIGN.md).
+ * Authoritative, clinical aesthetic: Deep Navy authority, Emergency Red for
+ * critical states, Clinical Blue for interaction. High information density.
+ */
+@theme {
+  --font-sans: var(--font-hanken), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, monospace;
+
+  /* Surfaces / neutrals */
+  --color-background: #f7f9fb;
+  --color-surface: #f7f9fb;
+  --color-surface-low: #f2f4f6;
+  --color-surface-container: #eceef0;
+  --color-surface-high: #e6e8ea;
+  --color-surface-highest: #e0e3e5;
+  --color-card: #ffffff;
+  --color-on-surface: #191c1e;
+  --color-on-surface-variant: #444651;
+  --color-outline: #747782;
+  --color-outline-variant: #c4c6d2;
+  --color-inverse-surface: #2d3133;
+  --color-inverse-on-surface: #eff1f3;
+
+  /* Primary — Deep Navy (authority) */
+  --color-primary: #001a48;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #002d72;
+  --color-on-primary-container: #b1c5ff;
+
+  /* Secondary — Emergency Red (critical only) */
+  --color-secondary: #ba002a;
+  --color-on-secondary: #ffffff;
+  --color-secondary-container: #e5183b;
+
+  /* Accent — Clinical Blue (interaction, links) */
+  --color-accent: #3d5ca2;
+  --color-accent-bright: #489df1;
+  --color-on-accent: #ffffff;
+
+  /* Status */
+  --color-success: #1f7a4d; /* credential status: Verified / valid / success */
+  --color-on-success: #ffffff;
+  --color-warning: #b25e00;
+  --color-on-warning: #ffffff;
+  --color-error: #ba1a1a;
+  --color-on-error: #ffffff;
+  --color-error-container: #ffdad6;
+  --color-on-error-container: #93000a;
+
+  /* Shape — Rounded Level 2 */
+  --radius-sm: 0.25rem;
+  --radius: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+
+  /* Elevation — subtle, blue-tinted clinical shadows */
+  --shadow-clinical: 0 4px 12px rgba(0, 26, 72, 0.04);
+  --shadow-clinical-md: 0 8px 24px rgba(0, 26, 72, 0.08);
+}
+
+/*
+ * Docs (Fumadocs) theme — remap fd tokens to the Clinical Response system.
+ * Plain :root / .dark rules (unlayered) reliably override Fumadocs' @theme
+ * defaults from neutral.css. Light values here; dark in the .dark block.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: light;
+
+  --color-fd-background: var(--color-background);
+  --color-fd-foreground: var(--color-on-surface);
+  --color-fd-muted: var(--color-surface-low);
+  --color-fd-muted-foreground: var(--color-on-surface-variant);
+  --color-fd-popover: var(--color-card);
+  --color-fd-popover-foreground: var(--color-on-surface);
+  --color-fd-card: var(--color-card);
+  --color-fd-card-foreground: var(--color-on-surface);
+  --color-fd-border: var(--color-outline-variant);
+  --color-fd-primary: var(--color-accent); /* links + active = Clinical Blue */
+  --color-fd-primary-foreground: var(--color-on-accent);
+  --color-fd-secondary: var(--color-surface-container);
+  --color-fd-secondary-foreground: var(--color-on-surface);
+  --color-fd-accent: var(--color-surface-container); /* hover / selected bg */
+  --color-fd-accent-foreground: var(--color-on-surface);
+  --color-fd-ring: var(--color-accent);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+.dark {
+  color-scheme: dark;
+
+  /* Surfaces / neutrals — dark */
+  --color-background: #0e1318;
+  --color-surface: #0e1318;
+  --color-surface-low: #131920;
+  --color-surface-container: #1a2230;
+  --color-surface-high: #1e2840;
+  --color-surface-highest: #223048;
+  --color-card: #141b28;
+  --color-on-surface: #dde1e6;
+  --color-on-surface-variant: #9ea4b0;
+  --color-outline: #535b6e;
+  --color-outline-variant: #2a3348;
+  --color-inverse-surface: #dde1e6;
+  --color-inverse-on-surface: #1a2232;
+
+  /* Primary — deep navy stays; sidebar is intentionally dark in both themes */
+
+  /* Secondary — emergency red, brighter for dark bg legibility */
+  --color-secondary: #ff4060;
+  --color-secondary-container: #92001c;
+
+  /* Accent — clinical blue, brightened for dark bg */
+  --color-accent: #7096ef;
+  --color-accent-bright: #5ba8f5;
+
+  /* Status — brightened for dark bg */
+  --color-success: #3dba7a;
+  --color-error: #ff6b6b;
+  --color-warning: #ffa040;
+  --color-error-container: #4d0010;
+  --color-on-error-container: #ffb3aa;
+
+  /* Docs (Fumadocs) — dark overrides */
+  --color-fd-background: var(--color-background);
+  --color-fd-foreground: var(--color-on-surface);
+  --color-fd-muted: var(--color-surface-low);
+  --color-fd-muted-foreground: var(--color-on-surface-variant);
+  --color-fd-popover: var(--color-surface-container);
+  --color-fd-popover-foreground: var(--color-on-surface);
+  --color-fd-card: var(--color-card);
+  --color-fd-card-foreground: var(--color-on-surface);
+  --color-fd-border: var(--color-outline-variant);
+  --color-fd-primary: var(--color-accent);
+  --color-fd-primary-foreground: var(--color-on-accent);
+  --color-fd-secondary: var(--color-surface-container);
+  --color-fd-secondary-foreground: var(--color-on-surface);
+  --color-fd-accent: var(--color-surface-high);
+  --color-fd-accent-foreground: var(--color-on-surface);
+  --color-fd-ring: var(--color-accent-bright);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/*
+ * Docs sidebar — deep navy authority in both light and dark (design intent:
+ * globals.css primary is fixed navy across themes).
+ */
+#nd-sidebar {
+  /* Explicit paint: id specificity overrides the element's own bg-fd-card class,
+     which the var-only override could not repaint (Tailwind v4 typed @property). */
+  background-color: var(--color-primary);
+  color: var(--color-on-primary);
+  --color-fd-card: var(--color-primary);
+  --color-fd-background: var(--color-primary);
+  --color-fd-muted: var(--color-primary-container);
+  --color-fd-foreground: var(--color-on-primary);
+  --color-fd-muted-foreground: var(--color-on-primary-container);
+  --color-fd-border: var(--color-primary-container);
+  --color-fd-secondary: var(--color-primary-container);
+  --color-fd-secondary-foreground: var(--color-on-primary);
+  --color-fd-accent: var(--color-primary-container);
+  --color-fd-accent-foreground: var(--color-on-primary);
+  --color-fd-primary: var(--color-accent-bright); /* active item, bright on navy */
+  --color-fd-primary-foreground: var(--color-on-primary);
+}
+
+/* Docs content uses the brand fonts (body inherits Hanken; force JetBrains Mono
+   for code/keys so technical strings match the rest of the product). */
+#nd-page :is(pre, code, kbd) {
+  font-family: var(--font-mono);
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-background);
+  color: var(--color-on-surface);
+  font-family: var(--font-sans);
+}
+
+/* Mono utility for technical data (LCN, IDs, timestamps). */
+.tabular {
+  font-feature-settings: "tnum";
+  font-variant-numeric: tabular-nums;
 }

@@ -1,0 +1,31 @@
+---
+title: License Number (LCN)
+description: How to read and enter an EMT's License Control Number.
+---
+
+The **License Number (LCN)** is the unique identifier for a credential. It's
+printed on the EMT's card and certificate, and it's what you enter to verify.
+
+## Format
+
+An LCN looks like `A09-240801`: a short alphanumeric prefix, a hyphen, and a
+numeric series, assigned by WSL EMS when the credential is issued. Treat the whole
+string — prefix, hyphen, and digits — as one identifier.
+
+## Entering an LCN
+
+- **Exact match.** The registry looks the LCN up exactly as it's stored.
+- **Surrounding spaces are ignored** — nothing else is normalized.
+- **Capitalization matters.** Enter it as printed (LCNs are typically uppercase,
+  like `A09-240801`).
+- **Keep the hyphen** if it's printed.
+
+<Callout type="warn" title="Reading a worn card">
+On faded cards, `0`/`O` and `1`/`I` are easy to mix up. If a number doesn't
+resolve, re-check those characters first. More in [Troubleshooting](/docs/troubleshooting).
+</Callout>
+
+## The verification link
+
+Each LCN has a permanent verification page at `/verify/<LCN>` — for example,
+`/verify/A09-240801`. See [Verification links & QR codes](/docs/verify/sharing).

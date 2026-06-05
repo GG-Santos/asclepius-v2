@@ -1,0 +1,38 @@
+---
+title: Troubleshooting
+description: Common issues with verifying a credential or claiming a portal account.
+---
+
+## "No active credential" for a number I know is valid
+
+LCNs are matched exactly. Confirm the prefix, the hyphen, and the digits
+(`A09-240801`), and that capitalization matches what's printed. Worn cards often
+blur `0`/`O` and `1`/`I`. If it still doesn't resolve, the credential may predate
+the registry — contact WSL EMS.
+
+## The profile shows no proficiency scores
+
+It's a [Legacy](/docs/verify/statuses) record (batch 16 or earlier). Detailed
+scores weren't digitized for those batches. The license is still valid.
+
+## The result says "Expired"
+
+The credential is past its valid-until date. The record is real, but the license
+isn't currently active — renewal is handled by WSL EMS.
+
+## I can't register for the portal
+
+Registration matches the **last name** on your registry record. Legacy records
+sometimes store only a single full name — enter your last name exactly as printed
+on your certificate, and confirm your LCN. See [Claim your portal
+account](/docs/graduates).
+
+## There's no photo on the result
+
+Not every record has a photo on file. It doesn't affect the credential's validity.
+
+## I scanned a QR code and it didn't open
+
+The QR encodes the credential's verification link (`/verify/<LCN>`). If it won't
+open, type the LCN into the home page instead — see [Verify a
+credential](/docs/verify).

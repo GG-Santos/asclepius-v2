@@ -1,0 +1,16 @@
+{
+  "session_id": "dd6708f4-c3c4-4f12-828b-9949895af462",
+  "started_at": "2026-06-05T18:10:18.173Z",
+  "prompts": [
+    {
+      "ts": "2026-06-05T18:10:18.173Z",
+      "text": "resume"
+    },
+    {
+      "ts": "2026-06-05T18:28:01.306Z",
+      "text": "resume"
+    }
+  ],
+  "wave_snapshots": [],
+  "last_updated": "2026-06-05T18:28:01.307Z"
+}
