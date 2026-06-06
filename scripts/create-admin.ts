@@ -32,8 +32,8 @@ const auth = betterAuth({
 });
 
 async function main() {
-  const email = process.argv[2] ?? process.env.ADMIN_EMAIL;
-  const password = process.argv[3] ?? process.env.ADMIN_PASSWORD;
+  const email = process.argv[2] ?? process.env.ADMIN_EMAIL ?? "admin@test.local";
+  const password = process.argv[3] ?? process.env.ADMIN_PASSWORD ?? "qwerty1234";
   const name = process.argv[4] ?? "Administrator";
 
   if (!email || !password) {

@@ -47,8 +47,8 @@ function parseArgs() {
 // Map argument names to env var names
 function getConfig(cliArgs: Record<string, string>) {
   return {
-    email: cliArgs["email"] || process.env.ADMIN_EMAIL,
-    password: cliArgs["password"] || process.env.ADMIN_PASSWORD,
+    email: cliArgs["email"] || process.env.ADMIN_EMAIL || "admin@test.local",
+    password: cliArgs["password"] || process.env.ADMIN_PASSWORD || "qwerty1234",
     databaseUrl:
       cliArgs["database-url"] || cliArgs["db-url"] || process.env.DATABASE_URL,
     authSecret:

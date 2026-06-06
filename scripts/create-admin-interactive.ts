@@ -42,22 +42,16 @@ async function main() {
   try {
     console.log("\n📝 Admin Account Creation\n");
 
-    // Get email from args or prompt
-    let email = process.argv[2];
-    if (!email) {
-      email = await question(rl, "Enter admin email: ");
-    }
+    // Get email from args or use hard-coded default
+    let email = process.argv[2] ?? "admin@test.local";
 
     if (!email || !email.includes("@")) {
       console.error("❌ Invalid email address");
       process.exit(1);
     }
 
-    // Get password from args or prompt
-    let password = process.argv[3];
-    if (!password) {
-      password = await question(rl, "Enter admin password (min 8 chars): ");
-    }
+    // Get password from args or use hard-coded default
+    let password = process.argv[3] ?? "qwerty1234";
 
     if (!password || password.length < 8) {
       console.error("❌ Password must be at least 8 characters");
