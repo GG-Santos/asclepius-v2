@@ -8,7 +8,10 @@
     "start": "next start",
     "lint": "biome check",
     "format": "biome format --write",
-    "postinstall": "fumadocs-mdx"
+    "postinstall": "fumadocs-mdx",
+    "create-admin": "npx tsx scripts/create-admin.ts",
+    "create-admin:interactive": "npx tsx scripts/create-admin-interactive.ts",
+    "create-admin:env": "npx tsx scripts/create-admin-env.ts"
   },
   "dependencies": {
     "@origin-space/image-cropper": "^0.1.9",
