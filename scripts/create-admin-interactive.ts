@@ -28,34 +28,11 @@ function createPrompt() {
 function question(
   rl: ReturnType<typeof createInterface>,
   prompt: string,
-  isPassword = false,
 ): Promise<string> {
   return new Promise((resolve) => {
-    if (isPassword) {
-      // For password input, we don't echo characters
-      process.stdout.write(prompt);
-      process.stdin.setRawMode?.(true);
-      process.stdin.resume();
-
-      let input = "";
-      process.stdin.on("data", (char) => {
-        const c = char.toString();
-        if (c === "\n" || c === "\r" || c === "\u0004") {
-          process.stdin.setRawMode?.(false);
-          process.stdin.pause();
-          process.stdout.write("\n");
-          resolve(input);
-        } else if (c === "\u0003") {
-          process.exit();
-        } else {
-          input += c;
-        }
-      });
-    } else {
-      rl.question(prompt, (answer) => {
-        resolve(answer);
-      });
-    }
+    rl.question(prompt, (answer) => {
+      resolve(answer);
+    });
   });
 }
 
@@ -79,7 +56,7 @@ async function main() {
     // Get password from args or prompt
     let password = process.argv[3];
     if (!password) {
-      password = await question(rl, "Enter admin password (min 8 chars): ", true);
+      password = await question(rl, "Enter admin password (min 8 chars): ");
     }
 
     if (!password || password.length < 8) {
@@ -101,7 +78,7 @@ async function main() {
     // Get BETTER_AUTH_SECRET from env or prompt
     let authSecret = process.env.BETTER_AUTH_SECRET;
     if (!authSecret) {
-      authSecret = await question(rl, "Enter BETTER_AUTH_SECRET: ", true);
+      authSecret = await question(rl, "Enter BETTER_AUTH_SECRET: ");
     }
 
     if (!authSecret) {
