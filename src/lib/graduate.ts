@@ -48,15 +48,26 @@ const SCORE_KEYS = [
   "scoreCCSM",
 ] as const;
 
-/** Sum of the six proficiency scores that are present. */
+/**
+ * Total Evaluation (0–100). The six proficiency scores are stored as already-
+ * weighted points — FWE/EP up to 10, SJE/PAS up to 15, CCST/CCSM up to 25 —
+ * which sum to 100. So the total is simply their sum (NOT a second weighting).
+ * null when no scores are recorded; partial records sum the points present.
+ */
 export function scoreTotal(
   g: Pick<Graduate, (typeof SCORE_KEYS)[number]>,
 ): number | null {
-  const values = SCORE_KEYS.map((k) => g[k]).filter(
-    (v): v is number => typeof v === "number",
-  );
-  if (values.length === 0) return null;
-  return Math.round(values.reduce((a, b) => a + b, 0) * 100) / 100;
+  let sum = 0;
+  let present = 0;
+  for (const k of SCORE_KEYS) {
+    const v = g[k];
+    if (typeof v === "number") {
+      sum += v;
+      present++;
+    }
+  }
+  if (present === 0) return null;
+  return Math.round(sum * 100) / 100;
 }
 
 /** Count of the six scores that are populated (for completeness display). */

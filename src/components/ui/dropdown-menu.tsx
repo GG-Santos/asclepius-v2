@@ -1,6 +1,7 @@
 "use client";
 
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
+import { Check } from "lucide-react";
 import type * as React from "react";
 import { cn } from "@/lib/utils";
 
@@ -62,5 +63,31 @@ export function DropdownMenuItem({
       )}
       {...props}
     />
+  );
+}
+
+export function DropdownMenuCheckboxItem({
+  className,
+  children,
+  checked,
+  ...props
+}: React.ComponentProps<typeof DropdownMenuPrimitive.CheckboxItem>) {
+  return (
+    <DropdownMenuPrimitive.CheckboxItem
+      checked={checked}
+      className={cn(
+        "relative flex cursor-pointer select-none items-center gap-2 rounded-md py-1.5 pr-2 pl-8 text-on-surface outline-none transition-colors",
+        "focus:bg-surface-container data-[highlighted]:bg-surface-container",
+        className,
+      )}
+      {...props}
+    >
+      <span className="absolute left-2 flex size-4 items-center justify-center">
+        <DropdownMenuPrimitive.ItemIndicator>
+          <Check className="size-4 text-accent" />
+        </DropdownMenuPrimitive.ItemIndicator>
+      </span>
+      {children}
+    </DropdownMenuPrimitive.CheckboxItem>
   );
 }

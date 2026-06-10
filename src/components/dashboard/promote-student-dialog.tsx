@@ -76,7 +76,7 @@ export function PromoteStudentDialog({
           <Button
             type="button"
             disabled={pending}
-            className="bg-success text-on-primary hover:bg-success/90"
+            className="bg-success text-on-success hover:bg-success/90"
             onClick={handleConfirm}
           >
             {pending ? "Graduating…" : "Graduate"}

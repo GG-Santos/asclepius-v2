@@ -19,6 +19,7 @@ import {
 } from "@/app/dashboard/graduates/actions";
 import { Badge } from "@/components/ui/badge";
 import type { VerificationState } from "@/lib/graduate";
+import { medalFor } from "@/lib/ranking";
 
 export type GraduateRow = {
   id: string;
@@ -27,9 +28,11 @@ export type GraduateRow = {
   status: "STUDENT" | "GRADUATE" | "ARCHIVED";
   state: VerificationState;
   batchCode: string | null;
+  professor: string | null;
   expirationRaw: string | null;
   legacy: boolean;
   photoUrl: string | null;
+  rank?: number | null;
 };
 
 const STATE_BADGE: Record<
@@ -119,11 +122,12 @@ export function GraduatesTable({
     <div className="overflow-x-auto rounded-lg border border-outline-variant/60">
       <table className="min-w-full border-collapse text-sm">
         <thead>
-          <tr className="bg-primary text-on-primary">
+          <tr className="border-b border-outline-variant bg-surface-container text-on-surface dark:border-white/[0.06]">
             <th className="px-3 py-2 text-left font-semibold">Photo</th>
             <th className="px-3 py-2 text-left font-semibold">Name</th>
             <th className="px-3 py-2 text-left font-semibold">License No.</th>
             <th className="px-3 py-2 text-left font-semibold">Batch</th>
+            <th className="px-3 py-2 text-left font-semibold">Rank</th>
             <th className="px-3 py-2 text-left font-semibold">Status</th>
             <th className="px-3 py-2 text-left font-semibold">Expiry</th>
             <th className="px-3 py-2 text-right font-semibold">Actions</th>
@@ -163,6 +167,11 @@ export function GraduatesTable({
                 <td className="px-3 py-2 font-mono text-xs">{g.lcn}</td>
                 <td className="px-3 py-2 text-on-surface-variant">
                   {g.batchCode ?? "—"}
+                </td>
+                <td className="tabular px-3 py-2 text-on-surface-variant">
+                  {g.rank != null
+                    ? `${medalFor(g.rank) ?? ""} #${g.rank}`
+                    : "—"}
                 </td>
                 <td className="px-3 py-2">
                   <Badge variant={badge.variant}>{badge.label}</Badge>

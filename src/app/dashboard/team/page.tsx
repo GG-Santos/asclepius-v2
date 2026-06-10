@@ -18,14 +18,7 @@ export default async function TeamPage() {
   }));
 
   return (
-    <div className="mx-auto max-w-[1000px] space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-on-surface">Team</h1>
-        <p className="mt-1 text-sm text-on-surface-variant">
-          Instructors and staff shown on the homepage. Only published members
-          are public.
-        </p>
-      </div>
+    <div className="mx-auto max-w-[1200px] space-y-6">
       <TeamManager rows={rows} />
     </div>
   );

@@ -12,6 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { removeWhiteBackground } from "@/lib/remove-background";
 
 type Area = { x: number; y: number; width: number; height: number };
 
@@ -42,7 +43,10 @@ async function cropToFile(src: string, area: Area): Promise<File> {
       0.95,
     ),
   );
-  return new File([blob], "photo.png", { type: "image/png" });
+  // Formal photos arrive on a white backdrop — strip it to transparency so
+  // the portrait composites cleanly onto the ID card and certificate.
+  const cleaned = await removeWhiteBackground(blob);
+  return new File([cleaned], "photo.png", { type: "image/png" });
 }
 
 export function PortalPhotoUpdate({
@@ -122,13 +126,14 @@ export function PortalPhotoUpdate({
             <Cropper.Root
               image={rawSrc}
               aspectRatio={4 / 5}
+              cropPadding={0}
               zoom={zoom}
               onZoomChange={setZoom}
               onCropChange={setArea}
-              className="relative h-72 w-full overflow-hidden rounded-md bg-inverse-surface"
+              className="relative mx-auto aspect-[4/5] h-[min(60svh,480px)] overflow-hidden rounded-md bg-inverse-surface"
             >
               <Cropper.Image className="h-full w-full object-cover" />
-              <Cropper.CropArea className="border-2 border-on-primary/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.5)]" />
+              <Cropper.CropArea className="border-2 border-white/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.5)]" />
             </Cropper.Root>
           )}
           <div className="flex justify-end gap-2">

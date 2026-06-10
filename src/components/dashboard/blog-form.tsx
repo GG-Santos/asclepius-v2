@@ -2,14 +2,17 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useActionState, useEffect, useRef } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { BlogActionState } from "@/app/dashboard/blog/actions";
 import { PhotoUpload } from "@/components/dashboard/photo-upload";
+import { RichTextEditor } from "@/components/dashboard/rich-text-editor";
+import { TagInput } from "@/components/dashboard/tag-input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { slugify } from "@/lib/slug";
 
 export type BlogDefaults = {
   title?: string;
@@ -18,12 +21,14 @@ export type BlogDefaults = {
   content?: string;
   status?: string;
   coverImage?: string | null;
+  tags?: string[];
 };
 
 export function BlogForm({
   action,
   defaults = {},
   submitLabel,
+  tagSuggestions = [],
 }: {
   action: (
     prev: BlogActionState,
@@ -31,11 +36,17 @@ export function BlogForm({
   ) => Promise<BlogActionState>;
   defaults?: BlogDefaults;
   submitLabel: string;
+  tagSuggestions?: string[];
 }) {
   const [state, formAction, pending] = useActionState(action, {});
   const router = useRouter();
   const handled = useRef(false);
   const fe = state.fieldErrors ?? {};
+
+  const [title, setTitle] = useState(defaults.title ?? "");
+  const [slug, setSlug] = useState(defaults.slug ?? "");
+  const [slugEdited, setSlugEdited] = useState(Boolean(defaults.slug));
+  const isPublished = defaults.status === "PUBLISHED";
 
   useEffect(() => {
     if (state.ok && !handled.current) {
@@ -61,22 +72,42 @@ export function BlogForm({
             <Input
               id="title"
               name="title"
-              defaultValue={defaults.title}
+              value={title}
+              onChange={(e) => {
+                setTitle(e.target.value);
+                if (!slugEdited) setSlug(slugify(e.target.value));
+              }}
               aria-invalid={fe.title ? true : undefined}
             />
             {fe.title && (
               <p className="text-xs font-medium text-error">{fe.title}</p>
             )}
           </div>
+
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="slug">Slug (optional)</Label>
+              <Label htmlFor="slug">Slug</Label>
               <Input
                 id="slug"
                 name="slug"
-                defaultValue={defaults.slug}
+                value={slug}
+                onChange={(e) => {
+                  setSlug(e.target.value);
+                  setSlugEdited(true);
+                }}
                 placeholder="auto from title"
               />
+              <p className="text-xs text-on-surface-variant">
+                /blog/
+                <span className="font-medium text-on-surface">
+                  {slug || "…"}
+                </span>
+                {isPublished && slugEdited && (
+                  <span className="ml-2 text-warning">
+                    Changing a published slug breaks its old URL.
+                  </span>
+                )}
+              </p>
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="status">Status</Label>
@@ -91,6 +122,7 @@ export function BlogForm({
               </select>
             </div>
           </div>
+
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="excerpt">Excerpt</Label>
             <Input
@@ -100,20 +132,24 @@ export function BlogForm({
               placeholder="Short summary for the blog list"
             />
           </div>
+
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="content">Content (Markdown) *</Label>
-            <textarea
-              id="content"
-              name="content"
-              defaultValue={defaults.content}
-              rows={14}
-              aria-invalid={fe.content ? true : undefined}
-              className="rounded border border-outline-variant bg-card px-3 py-2 font-mono text-sm leading-6 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30 aria-[invalid=true]:border-error"
+            <Label>Tags</Label>
+            <TagInput
+              name="tags"
+              defaultValue={defaults.tags ?? []}
+              suggestions={tagSuggestions}
             />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label>Content *</Label>
+            <RichTextEditor name="content" defaultValue={defaults.content} />
             {fe.content && (
               <p className="text-xs font-medium text-error">{fe.content}</p>
             )}
           </div>
+
           <div className="space-y-2">
             <Label>Cover image</Label>
             <PhotoUpload

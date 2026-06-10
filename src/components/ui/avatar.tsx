@@ -13,19 +13,27 @@ export function getInitials(name: string): string {
 
 export function Avatar({
   name,
+  src,
   className,
 }: {
   name: string;
+  /** Avatar image URL (user.image). Initials remain the fallback. */
+  src?: string | null;
   className?: string;
 }) {
   return (
     <span
       className={cn(
-        "flex size-8 shrink-0 items-center justify-center rounded-lg bg-accent/15 text-xs font-semibold text-accent",
+        "flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-accent/15 text-xs font-semibold text-accent",
         className,
       )}
     >
-      {getInitials(name)}
+      {src ? (
+        // biome-ignore lint/performance/noImgElement: user-uploaded blob avatar on an arbitrary domain
+        <img src={src} alt="" className="size-full object-cover" />
+      ) : (
+        getInitials(name)
+      )}
     </span>
   );
 }

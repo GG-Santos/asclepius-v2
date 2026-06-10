@@ -1,8 +1,8 @@
 "use client";
 
 import { Moon, Sun } from "lucide-react";
-import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
+import { useTheme } from "@/components/theme-provider";
 import { cn } from "@/lib/utils";
 
 export function AnimatedThemeToggler({ className }: { className?: string }) {

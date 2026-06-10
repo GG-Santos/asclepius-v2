@@ -2,10 +2,17 @@ import { ArrowLeft, Pencil } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { BatchLeaderboard } from "@/components/dashboard/batch-leaderboard";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { gradeFromSix, VERDICT_LABEL } from "@/lib/grading";
 import { scoreTotal } from "@/lib/graduate";
 import { prisma } from "@/lib/prisma";
+import {
+  medalFor,
+  rankCohortByActivity,
+  studentActivities,
+} from "@/lib/ranking";
 import { requireAdmin } from "@/lib/session";
 import { rollupGraduateScores } from "@/lib/student";
 import {
@@ -38,10 +45,25 @@ function PassBadge({ pass }: { pass: boolean }) {
   );
 }
 
+function rankCell(rank: number | undefined) {
+  if (!rank) return <span className="text-on-surface-variant">—</span>;
+  return (
+    <span className="tabular font-medium text-on-surface-variant">
+      {medalFor(rank) ?? ""} #{rank}
+    </span>
+  );
+}
+
 const STATUS_BADGE = {
   IN_TRAINING: { variant: "primary" as const, label: "In Training" },
   GRADUATED: { variant: "verified" as const, label: "Graduated" },
   WITHDRAWN: { variant: "neutral" as const, label: "Withdrawn" },
+};
+
+const VERDICT_STYLE = {
+  pass: "bg-success/15 text-success",
+  fail: "bg-error/15 text-error",
+  incomplete: "bg-warning/15 text-warning",
 };
 
 export default async function StudentDetailPage({
@@ -69,6 +91,36 @@ export default async function StudentDetailPage({
   const rolled = rollupGraduateScores(s);
   const total = scoreTotal(rolled);
   const badge = STATUS_BADGE[s.status];
+  const verdict = gradeFromSix(rolled);
+
+  // Cohort = the student's batch — used to rank each activity within the batch.
+  const cohortSource = s.batchCode
+    ? await prisma.student.findMany({
+        where: { batchCode: s.batchCode },
+        select: {
+          id: true,
+          name: true,
+          enrollmentNo: true,
+          scoreFWE: true,
+          scoreEP: true,
+          scorePAS: true,
+          scoreCCST: true,
+          scoreCCSM: true,
+          granularGrades: true,
+        },
+      })
+    : null;
+  const cohort = (cohortSource ?? [s]).map((c) => ({
+    id: c.id,
+    name: c.name?.trim() || c.enrollmentNo,
+    activities: studentActivities(c),
+  }));
+  const myRanks =
+    rankCohortByActivity(cohort).get(s.id) ?? new Map<string, number>();
+  const myActivities = studentActivities(s);
+  const weakest = myActivities
+    .filter((a) => a.passed === false)
+    .sort((a, b) => (a.pct ?? 0) - (b.pct ?? 0))[0];
 
   let quizRawTotal = 0;
   let quizEntered = 0;
@@ -109,7 +161,6 @@ export default async function StudentDetailPage({
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[18rem_1fr]">
-        {/* Left: photo */}
         <Card>
           <CardContent className="p-5">
             {s.photo?.url ? (
@@ -130,21 +181,45 @@ export default async function StudentDetailPage({
           </CardContent>
         </Card>
 
-        {/* Right: profile + scores */}
         <div className="space-y-6">
+          {/* Graduation standing */}
+          <Card>
+            <CardHeader className="flex-row items-center justify-between">
+              <CardTitle className="text-base">Graduation standing</CardTitle>
+              <span
+                className={`rounded px-2 py-0.5 text-xs font-semibold ${VERDICT_STYLE[verdict.verdict]}`}
+              >
+                {VERDICT_LABEL[verdict.verdict]}
+              </span>
+            </CardHeader>
+            <CardContent className="pt-0 text-sm">
+              <p className="text-on-surface-variant">
+                Weighted average:{" "}
+                <strong className="tabular text-on-surface">
+                  {verdict.weighted != null ? `${verdict.weighted}%` : "—"}
+                </strong>{" "}
+                (pass mark 70%).
+              </p>
+              {weakest ? (
+                <p className="mt-1 text-on-surface-variant">
+                  Weakest area:{" "}
+                  <strong className="text-secondary">{weakest.label}</strong>
+                  {weakest.pct != null ? ` (${weakest.pct}%)` : ""} — below its
+                  pass mark.
+                </p>
+              ) : verdict.verdict === "pass" ? (
+                <p className="mt-1 text-success">
+                  Passing every assessed area.
+                </p>
+              ) : null}
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Profile</CardTitle>
             </CardHeader>
             <CardContent className="divide-y divide-outline-variant/40 pt-0">
-              <Row
-                label="Name"
-                value={
-                  [s.firstName, s.middleName, s.lastName, s.suffix]
-                    .filter(Boolean)
-                    .join(" ") || "—"
-                }
-              />
               <Row label="Enrollment No." value={s.enrollmentNo} />
               <Row label="Status" value={badge.label} />
               <Row
@@ -169,11 +244,10 @@ export default async function StudentDetailPage({
                 />
               )}
               <Row label="Created" value={s.createdAt.toLocaleString()} />
-              <Row label="Last updated" value={s.updatedAt.toLocaleString()} />
             </CardContent>
           </Card>
 
-          {/* Periodic Examinations */}
+          {/* Periodic Examinations (quizzes) */}
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Periodic Examinations</CardTitle>
@@ -184,18 +258,20 @@ export default async function StudentDetailPage({
                   <thead className="bg-surface-container">
                     <tr>
                       <th className="px-3 py-2 font-semibold">Quiz</th>
-                      <th className="px-3 py-2 font-semibold">Topics</th>
-                      <th className="px-3 py-2 font-semibold text-center">
+                      <th className="px-3 py-2 text-center font-semibold">
                         Max
                       </th>
-                      <th className="px-3 py-2 font-semibold text-center">
+                      <th className="px-3 py-2 text-center font-semibold">
                         Pass
                       </th>
-                      <th className="px-3 py-2 font-semibold text-center">
+                      <th className="px-3 py-2 text-center font-semibold">
                         Score
                       </th>
-                      <th className="px-3 py-2 font-semibold text-center">
+                      <th className="px-3 py-2 text-center font-semibold">
                         Status
+                      </th>
+                      <th className="px-3 py-2 text-center font-semibold">
+                        Batch rank
                       </th>
                     </tr>
                   </thead>
@@ -211,9 +287,6 @@ export default async function StudentDetailPage({
                           className="odd:bg-card even:bg-surface-low"
                         >
                           <td className="px-3 py-2 font-medium">{def.label}</td>
-                          <td className="px-3 py-2 text-on-surface-variant">
-                            {def.topics}
-                          </td>
                           <td className="px-3 py-2 text-center font-mono">
                             {def.maxScore}
                           </td>
@@ -230,15 +303,16 @@ export default async function StudentDetailPage({
                               <span className="text-on-surface-variant">—</span>
                             )}
                           </td>
+                          <td className="px-3 py-2 text-center">
+                            {rankCell(myRanks.get(def.key))}
+                          </td>
                         </tr>
                       );
                     })}
                   </tbody>
                   <tfoot className="border-outline-variant/60 border-t bg-surface-highest font-semibold">
                     <tr>
-                      <td colSpan={2} className="px-3 py-2">
-                        Quiz Total
-                      </td>
+                      <td className="px-3 py-2">Quiz Total → SJE</td>
                       <td className="px-3 py-2 text-center font-mono">
                         {QUIZ_TOTAL_MAX}
                       </td>
@@ -246,7 +320,10 @@ export default async function StudentDetailPage({
                       <td className="px-3 py-2 text-center font-mono">
                         {quizEntered > 0 ? quizRawTotal : "—"}
                       </td>
-                      <td className="px-3 py-2 text-center text-on-surface-variant">
+                      <td
+                        colSpan={2}
+                        className="px-3 py-2 text-center text-on-surface-variant"
+                      >
                         {quizEntered > 0
                           ? `${Math.round((quizRawTotal / QUIZ_TOTAL_MAX) * 10000) / 100}% SJE`
                           : "—"}
@@ -266,7 +343,7 @@ export default async function StudentDetailPage({
               </CardTitle>
               {total !== null && (
                 <span className="text-sm font-semibold text-on-surface">
-                  {total}% computed total
+                  {total}% weighted total
                 </span>
               )}
             </CardHeader>
@@ -276,17 +353,20 @@ export default async function StudentDetailPage({
                   <thead className="bg-surface-container">
                     <tr>
                       <th className="px-3 py-2 font-semibold">Examination</th>
-                      <th className="px-3 py-2 font-semibold text-center">
+                      <th className="px-3 py-2 text-center font-semibold">
                         Max
                       </th>
-                      <th className="px-3 py-2 font-semibold text-center">
+                      <th className="px-3 py-2 text-center font-semibold">
                         Pass
                       </th>
-                      <th className="px-3 py-2 font-semibold text-center">
+                      <th className="px-3 py-2 text-center font-semibold">
                         Raw
                       </th>
-                      <th className="px-3 py-2 font-semibold text-center">
+                      <th className="px-3 py-2 text-center font-semibold">
                         Status
+                      </th>
+                      <th className="px-3 py-2 text-center font-semibold">
+                        Batch rank
                       </th>
                     </tr>
                   </thead>
@@ -318,12 +398,25 @@ export default async function StudentDetailPage({
                               <span className="text-on-surface-variant">—</span>
                             )}
                           </td>
+                          <td className="px-3 py-2 text-center">
+                            {rankCell(myRanks.get(def.key))}
+                          </td>
                         </tr>
                       );
                     })}
                   </tbody>
                 </table>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Per-activity leaderboard */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Batch leaderboard</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <BatchLeaderboard cohort={cohort} highlightId={s.id} />
             </CardContent>
           </Card>
         </div>

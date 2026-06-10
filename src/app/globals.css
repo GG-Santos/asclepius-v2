@@ -4,75 +4,126 @@
 @source "../../node_modules/fumadocs-ui/dist/**/*.js";
 
 /*
- * Clinical Response System — design tokens (from DESIGN.md).
- * Authoritative, clinical aesthetic: Deep Navy authority, Emergency Red for
- * critical states, Clinical Blue for interaction. High information density.
+ * Vital Signs — design tokens (from DESIGN.md, authority: design-ledger).
+ * Instrument-grade med-tech: zinc neutrals, a single pulse-teal accent,
+ * hairline borders over shadows, monospace tabular data. Dark mode is the
+ * native habitat — full parity, designed together with light.
  */
 @theme {
-  --font-sans: var(--font-hanken), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-jetbrains), ui-monospace, monospace;
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 
-  /* Surfaces / neutrals */
-  --color-background: #f7f9fb;
-  --color-surface: #f7f9fb;
-  --color-surface-low: #f2f4f6;
-  --color-surface-container: #eceef0;
-  --color-surface-high: #e6e8ea;
-  --color-surface-highest: #e0e3e5;
+  /* Surfaces / neutrals — zinc ladder */
+  --color-background: #fafafa;
+  --color-surface: #fafafa;
+  --color-surface-low: #f4f4f5;
+  --color-surface-container: #ececee;
+  --color-surface-high: #e4e4e7;
+  --color-surface-highest: #d4d4d8;
   --color-card: #ffffff;
-  --color-on-surface: #191c1e;
-  --color-on-surface-variant: #444651;
-  --color-outline: #747782;
-  --color-outline-variant: #c4c6d2;
-  --color-inverse-surface: #2d3133;
-  --color-inverse-on-surface: #eff1f3;
+  --color-sidebar: #f4f4f5;
+  --color-on-surface: #18181b;
+  --color-on-surface-variant: #52525b;
+  --color-outline: #a1a1aa;
+  --color-outline-variant: #e4e4e7;
+  --color-inverse-surface: #18181b;
+  --color-inverse-on-surface: #fafafa;
 
-  /* Primary — Deep Navy (authority) */
-  --color-primary: #001a48;
-  --color-on-primary: #ffffff;
-  --color-primary-container: #002d72;
-  --color-on-primary-container: #b1c5ff;
+  /* Primary — Ink (structure, primary actions in light) */
+  --color-primary: #18181b;
+  --color-on-primary: #fafafa;
+  --color-primary-container: #27272a;
+  --color-on-primary-container: #d4d4d8;
 
-  /* Secondary — Emergency Red (critical only) */
-  --color-secondary: #ba002a;
+  /* Secondary — destructive / expired (status red, never decorative) */
+  --color-secondary: #b91c1c;
   --color-on-secondary: #ffffff;
-  --color-secondary-container: #e5183b;
+  --color-secondary-container: #dc2626;
 
-  /* Accent — Clinical Blue (interaction, links) */
-  --color-accent: #3d5ca2;
-  --color-accent-bright: #489df1;
+  /* Accent — Pulse Teal (the only brand hue). AA-safe as text on bg/card. */
+  --color-accent: #0f766e;
+  --color-accent-bright: #0d9488;
+  --color-accent-dim: #ccfbf1;
   --color-on-accent: #ffffff;
 
-  /* Status */
-  --color-success: #1f7a4d; /* credential status: Verified / valid / success */
+  /* Status — signal set (monitor green / amber / red), strictly semantic */
+  --color-success: #15803d;
   --color-on-success: #ffffff;
-  --color-warning: #b25e00;
+  --color-warning: #b45309;
   --color-on-warning: #ffffff;
-  --color-error: #ba1a1a;
+  --color-error: #b91c1c;
   --color-on-error: #ffffff;
-  --color-error-container: #ffdad6;
-  --color-on-error-container: #93000a;
+  --color-error-container: #fee2e2;
+  --color-on-error-container: #7f1d1d;
 
-  /* Shape — Rounded Level 2 */
+  /* Chart series — functional data hues (teal-led, status-adjacent) */
+  --color-chart-1: #0d9488; /* pulse teal */
+  --color-chart-2: #16a34a; /* monitor green */
+  --color-chart-3: #d97706; /* amber */
+  --color-chart-4: #64748b; /* slate (neutral series) */
+  --color-chart-5: #0891b2; /* cyan */
+  --color-chart-6: #e11d48; /* rose (error series) */
+
+  /* Shape — precision radii (4–6px core; pills only for status chips) */
   --radius-sm: 0.25rem;
-  --radius: 0.5rem;
-  --radius-md: 0.75rem;
-  --radius-lg: 1rem;
-  --radius-xl: 1.5rem;
+  --radius: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
 
-  /* Elevation — subtle, blue-tinted clinical shadows */
-  --shadow-clinical: 0 4px 12px rgba(0, 26, 72, 0.04);
-  --shadow-clinical-md: 0 8px 24px rgba(0, 26, 72, 0.08);
+  /* Elevation — borders over shadows; shadows only for floating layers */
+  --shadow-clinical: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-clinical-md: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
 /*
- * Docs (Fumadocs) theme — remap fd tokens to the Clinical Response system.
- * Plain :root / .dark rules (unlayered) reliably override Fumadocs' @theme
- * defaults from neutral.css. Light values here; dark in the .dark block.
+ * Light-mode supporting tokens (non-@theme: consumed via var() in CSS/JS).
+ * Chart plumbing reads these so Recharts props stay token-bound (R3).
  */
 :root {
   color-scheme: light;
 
+  /* Chart plumbing */
+  --chart-axis: #71717a;
+  --chart-grid: #e4e4e7;
+  --chart-tooltip-bg: #ffffff;
+  --chart-tooltip-border: #d4d4d8;
+  --chart-tooltip-fg: #18181b;
+  --chart-bar: #0d9488;
+  --chart-bar-cursor: #f4f4f5;
+  --chart-line-ok: #0d9488;
+  --chart-line-err: #dc2626;
+  --chart-line-rate: #16a34a;
+  --chart-ghost: #b6b9c2;
+  --chart-target: #d97706;
+
+  /* Accent tints for decorative gradients (hero glow, section washes) */
+  --accent-tint-strong: rgba(13, 148, 136, 0.08);
+  --accent-tint-soft: rgba(13, 148, 136, 0.05);
+  --gradient-deep: linear-gradient(
+    135deg,
+    #134e4a 0%,
+    #115e59 55%,
+    #0f766e 100%
+  );
+
+  /* Glow system — interactive/status only, restrained */
+  --glow-accent:
+    0 0 0 1px rgba(13, 148, 136, 0.25), 0 4px 16px rgba(0, 0, 0, 0.08);
+  --glow-accent-soft: 0 0 16px rgba(13, 148, 136, 0.12);
+  --glow-success: 0 0 10px rgba(22, 163, 74, 0.2);
+  --glow-error: 0 0 10px rgba(220, 38, 38, 0.2);
+
+  /* Syntax highlighting (code blocks render on inverse surface — dark in light mode) */
+  --syntax-comment: #8b8b94;
+  --syntax-keyword: #f87171;
+  --syntax-string: #4ade80;
+  --syntax-number: #fbbf24;
+  --syntax-title: #2dd4bf;
+  --syntax-attribute: #94a3b8;
+  --syntax-meta: #8b8b94;
+
+  /* Docs (Fumadocs) remap — light */
   --color-fd-background: var(--color-background);
   --color-fd-foreground: var(--color-on-surface);
   --color-fd-muted: var(--color-surface-low);
@@ -82,11 +133,11 @@
   --color-fd-card: var(--color-card);
   --color-fd-card-foreground: var(--color-on-surface);
   --color-fd-border: var(--color-outline-variant);
-  --color-fd-primary: var(--color-accent); /* links + active = Clinical Blue */
+  --color-fd-primary: var(--color-accent);
   --color-fd-primary-foreground: var(--color-on-accent);
   --color-fd-secondary: var(--color-surface-container);
   --color-fd-secondary-foreground: var(--color-on-surface);
-  --color-fd-accent: var(--color-surface-container); /* hover / selected bg */
+  --color-fd-accent: var(--color-surface-container);
   --color-fd-accent-foreground: var(--color-on-surface);
   --color-fd-ring: var(--color-accent);
 }
@@ -94,37 +145,109 @@
 .dark {
   color-scheme: dark;
 
+  /*
+   * Vital Signs Dark — the native habitat. Near-black zinc ladder, hairline
+   * borders carry structure, phosphor teal accent. Sidebar sits below the
+   * canvas; cards sit one hairline above it.
+   */
+
   /* Surfaces / neutrals — dark */
-  --color-background: #0e1318;
-  --color-surface: #0e1318;
-  --color-surface-low: #131920;
-  --color-surface-container: #1a2230;
-  --color-surface-high: #1e2840;
-  --color-surface-highest: #223048;
-  --color-card: #141b28;
-  --color-on-surface: #dde1e6;
-  --color-on-surface-variant: #9ea4b0;
-  --color-outline: #535b6e;
-  --color-outline-variant: #2a3348;
-  --color-inverse-surface: #dde1e6;
-  --color-inverse-on-surface: #1a2232;
+  --color-background: #0b0b0c;
+  --color-surface: #0b0b0c;
+  --color-surface-low: #111113;
+  --color-surface-container: #18181b;
+  --color-surface-high: #1f1f23;
+  --color-surface-highest: #27272a;
+  --color-card: #111113;
+  --color-sidebar: #060607;
+  --color-on-surface: #f4f4f5;
+  --color-on-surface-variant: #a1a1aa;
+  --color-outline: #3f3f46;
+  --color-outline-variant: #27272a;
+  --color-inverse-surface: #f4f4f5;
+  --color-inverse-on-surface: #18181b;
 
-  /* Primary — deep navy stays; sidebar is intentionally dark in both themes */
+  /* Primary — inverted ink (light-on-dark primary actions) */
+  --color-primary: #f4f4f5;
+  --color-on-primary: #18181b;
+  --color-primary-container: #27272a;
+  --color-on-primary-container: #d4d4d8;
 
-  /* Secondary — emergency red, brighter for dark bg legibility */
-  --color-secondary: #ff4060;
-  --color-secondary-container: #92001c;
+  /* Secondary — destructive, brightened for dark legibility */
+  --color-secondary: #f87171;
+  --color-on-secondary: #450a0a;
+  --color-secondary-container: #7f1d1d;
 
-  /* Accent — clinical blue, brightened for dark bg */
-  --color-accent: #7096ef;
-  --color-accent-bright: #5ba8f5;
+  /* Accent — phosphor teal */
+  --color-accent: #2dd4bf;
+  --color-accent-bright: #5eead4;
+  --color-accent-dim: #134e4a;
+  --color-on-accent: #042f2e;
 
-  /* Status — brightened for dark bg */
-  --color-success: #3dba7a;
-  --color-error: #ff6b6b;
-  --color-warning: #ffa040;
-  --color-error-container: #4d0010;
-  --color-on-error-container: #ffb3aa;
+  /* Status — brightened signal set */
+  --color-success: #4ade80;
+  --color-on-success: #052e16;
+  --color-warning: #fbbf24;
+  --color-on-warning: #451a03;
+  --color-error: #f87171;
+  --color-on-error: #450a0a;
+  --color-error-container: #450a0a;
+  --color-on-error-container: #fecaca;
+
+  /* Chart series — brightened for the dark canvas */
+  --color-chart-1: #2dd4bf;
+  --color-chart-2: #4ade80;
+  --color-chart-3: #fbbf24;
+  --color-chart-4: #94a3b8;
+  --color-chart-5: #22d3ee;
+  --color-chart-6: #fb7185;
+
+  /* Chart plumbing — dark */
+  --chart-axis: #a1a1aa;
+  --chart-grid: rgba(255, 255, 255, 0.05);
+  --chart-tooltip-bg: #18181b;
+  --chart-tooltip-border: rgba(255, 255, 255, 0.08);
+  --chart-tooltip-fg: #f4f4f5;
+  --chart-bar: #2dd4bf;
+  --chart-bar-cursor: rgba(45, 212, 191, 0.06);
+  --chart-line-ok: #2dd4bf;
+  --chart-line-err: #fb7185;
+  --chart-line-rate: #4ade80;
+  --chart-ghost: #56565e;
+  --chart-target: #fbbf24;
+
+  /* Accent tints — dark */
+  --accent-tint-strong: rgba(45, 212, 191, 0.08);
+  --accent-tint-soft: rgba(45, 212, 191, 0.05);
+  --gradient-deep: linear-gradient(
+    135deg,
+    #042f2e 0%,
+    #0b3d3a 55%,
+    #115e59 100%
+  );
+
+  /* Elevation — depth via darkness; hairlines still carry structure */
+  --shadow-clinical: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-clinical-md: 0 4px 16px rgba(0, 0, 0, 0.5);
+  --shadow-clinical-lg:
+    0 8px 32px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.04);
+
+  /* Glow system — phosphor, interactive/status only */
+  --glow-accent:
+    0 0 0 1px rgba(45, 212, 191, 0.3), 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 24px
+    rgba(45, 212, 191, 0.1);
+  --glow-accent-soft: 0 0 16px rgba(45, 212, 191, 0.12);
+  --glow-success: 0 0 12px rgba(74, 222, 128, 0.25);
+  --glow-error: 0 0 12px rgba(248, 113, 113, 0.25);
+
+  /* Syntax highlighting — code blocks render on inverse surface (light in dark mode) */
+  --syntax-comment: #64748b;
+  --syntax-keyword: #b91c1c;
+  --syntax-string: #15803d;
+  --syntax-number: #b45309;
+  --syntax-title: #0f766e;
+  --syntax-attribute: #475569;
+  --syntax-meta: #64748b;
 
   /* Docs (Fumadocs) — dark overrides */
   --color-fd-background: var(--color-background);
@@ -135,41 +258,39 @@
   --color-fd-popover-foreground: var(--color-on-surface);
   --color-fd-card: var(--color-card);
   --color-fd-card-foreground: var(--color-on-surface);
-  --color-fd-border: var(--color-outline-variant);
+  --color-fd-border: rgba(255, 255, 255, 0.07);
   --color-fd-primary: var(--color-accent);
   --color-fd-primary-foreground: var(--color-on-accent);
   --color-fd-secondary: var(--color-surface-container);
   --color-fd-secondary-foreground: var(--color-on-surface);
-  --color-fd-accent: var(--color-surface-high);
+  --color-fd-accent: rgba(45, 212, 191, 0.08);
   --color-fd-accent-foreground: var(--color-on-surface);
   --color-fd-ring: var(--color-accent-bright);
 }
 
 /*
- * Docs sidebar — deep navy authority in both light and dark (design intent:
- * globals.css primary is fixed navy across themes).
+ * Docs sidebar — matches the app sidebar surface (basement-below-canvas in
+ * dark, quiet zinc in light). Hairline-separated, no brand-color lock.
  */
 #nd-sidebar {
-  /* Explicit paint: id specificity overrides the element's own bg-fd-card class,
-     which the var-only override could not repaint (Tailwind v4 typed @property). */
-  background-color: var(--color-primary);
-  color: var(--color-on-primary);
-  --color-fd-card: var(--color-primary);
-  --color-fd-background: var(--color-primary);
-  --color-fd-muted: var(--color-primary-container);
-  --color-fd-foreground: var(--color-on-primary);
-  --color-fd-muted-foreground: var(--color-on-primary-container);
-  --color-fd-border: var(--color-primary-container);
-  --color-fd-secondary: var(--color-primary-container);
-  --color-fd-secondary-foreground: var(--color-on-primary);
-  --color-fd-accent: var(--color-primary-container);
-  --color-fd-accent-foreground: var(--color-on-primary);
-  --color-fd-primary: var(--color-accent-bright); /* active item, bright on navy */
-  --color-fd-primary-foreground: var(--color-on-primary);
+  background-color: var(--color-sidebar);
+  color: var(--color-on-surface);
+  --color-fd-card: var(--color-sidebar);
+  --color-fd-background: var(--color-sidebar);
+  --color-fd-muted: var(--color-surface-container);
+  --color-fd-foreground: var(--color-on-surface);
+  --color-fd-muted-foreground: var(--color-on-surface-variant);
+  --color-fd-border: var(--color-outline-variant);
+  --color-fd-secondary: var(--color-surface-container);
+  --color-fd-secondary-foreground: var(--color-on-surface);
+  --color-fd-accent: var(--color-surface-container);
+  --color-fd-accent-foreground: var(--color-on-surface);
+  --color-fd-primary: var(--color-accent); /* active item */
+  --color-fd-primary-foreground: var(--color-on-accent);
 }
 
-/* Docs content uses the brand fonts (body inherits Hanken; force JetBrains Mono
-   for code/keys so technical strings match the rest of the product). */
+/* Docs content uses the brand fonts (body inherits Geist Sans; force Geist
+   Mono for code/keys so technical strings match the rest of the product). */
 #nd-page :is(pre, code, kbd) {
   font-family: var(--font-mono);
 }
@@ -188,4 +309,298 @@ body {
 .tabular {
   font-feature-settings: "tnum";
   font-variant-numeric: tabular-nums;
+}
+
+/* Focus ring — the Vital Signs signature flourish. Shared baseline for any
+   element that opts in via the .ring-focus utility (interactive primitives
+   carry their own focus-visible classes). */
+.ring-focus:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/*
+ * Type scale (from DESIGN.md). Exposed as utilities so pages express real
+ * hierarchy instead of ad-hoc text-2xl/text-sm. Display/headline are fluid so
+ * they read large on desktop without overflowing mobile.
+ */
+.text-display-lg {
+  font-family: var(--font-sans);
+  font-size: clamp(2rem, 1.4rem + 2.4vw, 3rem);
+  font-weight: 700;
+  line-height: 1.08;
+  letter-spacing: -0.025em;
+}
+.text-headline-lg {
+  font-family: var(--font-sans);
+  font-size: clamp(1.5rem, 1.2rem + 1.3vw, 2rem);
+  font-weight: 600;
+  line-height: 1.18;
+  letter-spacing: -0.015em;
+}
+.text-title-md {
+  font-family: var(--font-sans);
+  font-size: 1.125rem;
+  font-weight: 600;
+  line-height: 1.34;
+}
+.text-label-caps {
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.text-data-mono {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.4;
+  font-feature-settings: "tnum";
+  font-variant-numeric: tabular-nums;
+}
+
+/* EKG pulse-line — the Vital Signs signature divider. An inline SVG mask
+   draws a flatline that spikes once; used as a section divider and loading
+   accent. Static by default; .ekg-animate adds the sweep. */
+.ekg-divider {
+  position: relative;
+  height: 1px;
+  background: var(--color-outline-variant);
+}
+.ekg-divider::after {
+  content: "";
+  position: absolute;
+  inset: -7px 0;
+  background-color: var(--color-accent-bright);
+  -webkit-mask:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 16' preserveAspectRatio='none'%3E%3Cpath d='M0 8h80l6-6 8 12 6-6h100' fill='none' stroke='black' stroke-width='1.5'/%3E%3C/svg%3E")
+    center / 200px 16px no-repeat;
+  mask:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 16' preserveAspectRatio='none'%3E%3Cpath d='M0 8h80l6-6 8 12 6-6h100' fill='none' stroke='black' stroke-width='1.5'/%3E%3C/svg%3E")
+    center / 200px 16px no-repeat;
+}
+
+/*
+ * Course cover fallback — branded deep-teal gradient used when a course has
+ * no cover image, so imageless cards still read as intentional, not empty.
+ */
+.course-cover-fallback {
+  background-image:
+    radial-gradient(
+      circle at 18% 22%,
+      var(--accent-tint-strong),
+      transparent 55%
+    ),
+    radial-gradient(circle at 85% 80%, var(--accent-tint-soft), transparent 50%),
+    var(--gradient-deep);
+}
+
+/* 3D viewer fills the screen in fullscreen (override aspect-ratio sizing). */
+.model-frame:fullscreen {
+  width: 100vw;
+  height: 100vh;
+  border-radius: 0;
+  aspect-ratio: auto;
+}
+
+/*
+ * Blog prose — shared by the TipTap editor surface and the public post render
+ * (sanitized HTML). Mapped to Vital Signs tokens so embedded/authored content
+ * follows the theme in both modes (R10).
+ */
+.blog-prose {
+  color: var(--color-on-surface);
+  font-size: 1.0625rem;
+  line-height: 1.75;
+  word-break: break-word;
+}
+.blog-prose > * + * {
+  margin-top: 1.1em;
+}
+.blog-prose h1,
+.blog-prose h2 {
+  margin-top: 1.8em;
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--color-on-surface);
+}
+.blog-prose h3 {
+  margin-top: 1.6em;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--color-on-surface);
+}
+.blog-prose p {
+  color: var(--color-on-surface-variant);
+}
+.blog-prose a {
+  color: var(--color-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.blog-prose strong {
+  font-weight: 700;
+  color: var(--color-on-surface);
+}
+.blog-prose ul,
+.blog-prose ol {
+  padding-left: 1.5rem;
+  color: var(--color-on-surface-variant);
+}
+.blog-prose ul {
+  list-style: disc;
+}
+.blog-prose ol {
+  list-style: decimal;
+}
+.blog-prose li {
+  margin-top: 0.3em;
+}
+.blog-prose blockquote {
+  border-left: 3px solid var(--color-accent);
+  padding-left: 1rem;
+  font-style: italic;
+  color: var(--color-on-surface-variant);
+}
+.blog-prose code {
+  border-radius: 0.25rem;
+  background: var(--color-surface-container);
+  padding: 0.1em 0.35em;
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+}
+.blog-prose pre {
+  overflow-x: auto;
+  border-radius: 0.5rem;
+  background: var(--color-inverse-surface);
+  padding: 1rem 1.1rem;
+  color: var(--color-inverse-on-surface);
+}
+.blog-prose pre code {
+  background: transparent;
+  padding: 0;
+  font-size: 0.85em;
+  color: inherit;
+}
+.blog-prose img,
+.blog-prose .blog-img {
+  height: auto;
+  max-width: 100%;
+  border-radius: 0.5rem;
+}
+.blog-prose hr {
+  margin: 2em 0;
+  border: none;
+  border-top: 1px solid var(--color-outline-variant);
+}
+.blog-prose table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+.blog-prose th,
+.blog-prose td {
+  border: 1px solid var(--color-outline-variant);
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+}
+.blog-prose th {
+  background: var(--color-surface-container);
+  font-weight: 600;
+  color: var(--color-on-surface);
+}
+.blog-prose iframe,
+.blog-prose .blog-embed,
+.blog-prose div[data-youtube-video] iframe {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  height: auto;
+  border: none;
+  border-radius: 0.5rem;
+}
+/* TipTap placeholder (empty editor) */
+.blog-prose p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  color: var(--color-on-surface-variant);
+  opacity: 0.6;
+}
+
+/* Embedded 3D model placeholder (hydrated into an interactive viewer) */
+.blog-prose .blog-model-embed {
+  margin: 1.4em 0;
+  display: flex;
+  min-height: 240px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.75rem;
+  border: 1px dashed var(--color-outline-variant);
+  background: var(--color-surface-low);
+  color: var(--color-on-surface-variant);
+  font-size: 0.85rem;
+}
+
+/* Callout box */
+.blog-prose .blog-callout {
+  margin: 1.2em 0;
+  border: 1px solid var(--color-outline-variant);
+  border-left: 3px solid var(--color-accent);
+  border-radius: 0.5rem;
+  background: var(--color-surface-low);
+  padding: 0.9rem 1.1rem;
+}
+.blog-prose .blog-callout > * {
+  margin-top: 0.5em;
+}
+.blog-prose .blog-callout > *:first-child {
+  margin-top: 0;
+}
+.blog-prose .blog-callout p {
+  color: var(--color-on-surface);
+}
+
+/* Code syntax highlighting (lowlight / highlight.js tokens) — token-bound so
+   the palette tracks the theme (code renders on the inverse surface). */
+.blog-prose .hljs-comment,
+.blog-prose .hljs-quote {
+  color: var(--syntax-comment);
+  font-style: italic;
+}
+.blog-prose .hljs-keyword,
+.blog-prose .hljs-selector-tag,
+.blog-prose .hljs-literal,
+.blog-prose .hljs-doctag {
+  color: var(--syntax-keyword);
+}
+.blog-prose .hljs-string,
+.blog-prose .hljs-attr,
+.blog-prose .hljs-addition,
+.blog-prose .hljs-template-tag {
+  color: var(--syntax-string);
+}
+.blog-prose .hljs-title,
+.blog-prose .hljs-function .hljs-title,
+.blog-prose .hljs-section,
+.blog-prose .hljs-name {
+  color: var(--syntax-title);
+}
+.blog-prose .hljs-number,
+.blog-prose .hljs-built_in,
+.blog-prose .hljs-class .hljs-title {
+  color: var(--syntax-number);
+}
+.blog-prose .hljs-attribute,
+.blog-prose .hljs-variable,
+.blog-prose .hljs-tag,
+.blog-prose .hljs-regexp {
+  color: var(--syntax-attribute);
+}
+.blog-prose .hljs-meta,
+.blog-prose .hljs-symbol {
+  color: var(--syntax-meta);
 }

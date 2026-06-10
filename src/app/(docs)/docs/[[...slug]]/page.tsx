@@ -1,10 +1,10 @@
-import type { Metadata } from "next";
 import {
   DocsBody,
   DocsDescription,
   DocsPage,
   DocsTitle,
 } from "fumadocs-ui/layouts/docs/page";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { docsMdxComponents } from "@/components/docs/mdx-components";
 import { source } from "@/lib/source";

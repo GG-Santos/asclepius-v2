@@ -4,7 +4,11 @@ import { revalidatePath } from "next/cache";
 import { uploadImage } from "@/lib/blob";
 import { composeName, isLegacyBatch } from "@/lib/graduate";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/session";
+import {
+  canProfessorEditBatch,
+  requireAdmin,
+  requireUser,
+} from "@/lib/session";
 import {
   buildEnrollmentNo,
   buildLcn,
@@ -134,7 +138,24 @@ export async function updateStudent(
   _prev: StudentActionState,
   formData: FormData,
 ): Promise<StudentActionState> {
-  const session = await requireAdmin();
+  const session = await requireUser();
+  const existing = await prisma.student.findUnique({
+    where: { id },
+    select: { batchCode: true },
+  });
+  if (!existing) return { error: "Student not found." };
+  const role = session.user.role;
+  // Admins edit anyone; professors edit only their own non-graduated batches.
+  if (
+    role !== "admin" &&
+    !(
+      role === "professor" &&
+      (await canProfessorEditBatch(session.user.id, existing.batchCode))
+    )
+  ) {
+    return { error: "You can only edit students in your own active batches." };
+  }
+
   const parsed = studentInputSchema.safeParse(
     Object.fromEntries(formData.entries()),
   );
@@ -145,6 +166,15 @@ export async function updateStudent(
     };
   }
   const { batchId, batchCode } = await resolveBatch(parsed.data.batchCode);
+  // Professors can't move a student into a batch they don't own (or a graduated one).
+  if (
+    role === "professor" &&
+    !(await canProfessorEditBatch(session.user.id, batchCode))
+  ) {
+    return {
+      error: "You can only assign students to your own active batches.",
+    };
+  }
   const photoId = await maybePhoto(formData, session.user.id);
 
   await prisma.student.update({

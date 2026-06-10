@@ -1,19 +1,21 @@
 import type { Metadata } from "next";
-import { Hanken_Grotesk, JetBrains_Mono } from "next/font/google";
+import { Geist, Geist_Mono } from "next/font/google";
+import Script from "next/script";
 import { Toaster } from "sonner";
 import { ConsentBanner } from "@/components/consent-banner";
 import { ThemeProvider } from "@/components/theme-provider";
+import { THEME_BOOTSTRAP_SCRIPT } from "@/lib/theme-script";
 import "./globals.css";
 
-const hanken = Hanken_Grotesk({
+const geistSans = Geist({
   subsets: ["latin"],
-  variable: "--font-hanken",
+  variable: "--font-geist-sans",
   display: "swap",
 });
 
-const jetbrainsMono = JetBrains_Mono({
+const geistMono = Geist_Mono({
   subsets: ["latin"],
-  variable: "--font-jetbrains",
+  variable: "--font-geist-mono",
   display: "swap",
 });
 
@@ -59,13 +61,27 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${hanken.variable} ${jetbrainsMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body
         className="min-h-full bg-background font-sans text-on-surface"
         suppressHydrationWarning
       >
-        <script type="application/ld+json">{JSON.stringify(orgJsonLd)}</script>
+        {/* No-FOUC theme bootstrap. next/script with beforeInteractive is the
+            Next-sanctioned path: injected into the initial HTML by Next itself
+            (before hydration), so React never renders a raw <script> element
+            on the client (React 19.2 warns on those). */}
+        <Script
+          id="theme-bootstrap"
+          strategy="beforeInteractive"
+          // biome-ignore lint/security/noDangerouslySetInnerHtml: build-time constant, not user input
+          dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP_SCRIPT }}
+        />
+        <script
+          type="application/ld+json"
+          // biome-ignore lint/security/noDangerouslySetInnerHtml: JSON-LD structured data, not user input
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(orgJsonLd) }}
+        />
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
@@ -77,7 +93,7 @@ export default function RootLayout({
           <Toaster
             position="top-center"
             richColors
-            toastOptions={{ style: { fontFamily: "var(--font-hanken)" } }}
+            toastOptions={{ style: { fontFamily: "var(--font-geist-sans)" } }}
           />
         </ThemeProvider>
       </body>

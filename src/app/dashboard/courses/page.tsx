@@ -1,15 +1,27 @@
 import { BookOpen, Plus } from "lucide-react";
 import Link from "next/link";
+import { PageHeader } from "@/components/dashboard/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { prisma } from "@/lib/prisma";
+import { CourseCover } from "@/components/ui/course-cover";
+import { EmptyState } from "@/components/ui/empty-state";
+import { coursesPrisma } from "@/lib/courses-db";
 import { requireAdmin } from "@/lib/session";
+
+const STATE_BADGE: Record<
+  string,
+  { label: string; variant: "verified" | "neutral" | "primary" }
+> = {
+  PUBLISHED: { label: "Published", variant: "verified" },
+  UNPUBLISHED: { label: "Draft", variant: "neutral" },
+  ARCHIVED: { label: "Archived", variant: "primary" },
+};
 
 export default async function CoursesPage() {
   await requireAdmin();
 
-  const courses = await prisma.course.findMany({
+  const courses = await coursesPrisma.course.findMany({
+    where: { state: { not: "DELETED" } },
     orderBy: { createdAt: "desc" },
     include: {
       _count: { select: { modules: true, enrollments: true } },
@@ -17,69 +29,73 @@ export default async function CoursesPage() {
   });
 
   return (
-    <div className="mx-auto max-w-[1200px] space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-on-surface">Courses</h1>
-          <p className="mt-1 text-sm text-on-surface-variant">
-            LMS courses for active graduates. Publish a course to make it
-            available in the graduate portal.
+    <div className="mx-auto max-w-[1200px] space-y-8">
+      <PageHeader
+        eyebrow="Learning · CE"
+        title="Courses"
+        meta={
+          <p className="max-w-prose">
+            Continuing-education courses for active graduates. Publish a course
+            to make it available in the graduate portal.
           </p>
-        </div>
-        <Button asChild>
-          <Link href="/dashboard/courses/new">
-            <Plus aria-hidden /> New course
-          </Link>
-        </Button>
-      </div>
+        }
+        actions={
+          <Button asChild>
+            <Link href="/dashboard/courses/new">
+              <Plus aria-hidden /> New course
+            </Link>
+          </Button>
+        }
+      />
 
       {courses.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center gap-3 px-6 py-16 text-center">
-            <BookOpen className="size-8 text-on-surface-variant" aria-hidden />
-            <p className="text-sm text-on-surface-variant">
-              No courses yet. Create your first course to start building the
-              LMS.
-            </p>
-            <Button asChild variant="outline">
+        <EmptyState
+          icon={<BookOpen aria-hidden />}
+          title="No courses yet"
+          description="Create your first course to start building the LMS."
+          action={
+            <Button asChild>
               <Link href="/dashboard/courses/new">
                 <Plus aria-hidden /> New course
               </Link>
             </Button>
-          </CardContent>
-        </Card>
+          }
+        />
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {courses.map((course) => (
-            <Link
-              key={course.id}
-              href={`/dashboard/courses/${course.id}`}
-              className="group rounded-lg border border-outline-variant/60 bg-card p-5 transition-colors hover:border-accent"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <h2 className="font-semibold text-on-surface group-hover:text-accent">
-                  {course.title}
-                </h2>
-                <Badge
-                  variant={
-                    course.status === "PUBLISHED" ? "verified" : "neutral"
-                  }
-                >
-                  {course.status === "PUBLISHED" ? "Published" : "Draft"}
-                </Badge>
-              </div>
-              {course.summary && (
-                <p className="mt-2 line-clamp-2 text-sm text-on-surface-variant">
-                  {course.summary}
-                </p>
-              )}
-              <p className="mt-4 text-xs text-on-surface-variant">
-                {course._count.modules} module
-                {course._count.modules === 1 ? "" : "s"} ·{" "}
-                {course._count.enrollments} enrolled
-              </p>
-            </Link>
-          ))}
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {courses.map((course) => {
+            const badge = STATE_BADGE[course.state] ?? STATE_BADGE.UNPUBLISHED;
+            return (
+              <Link
+                key={course.id}
+                href={`/dashboard/courses/${course.id}`}
+                className="group flex flex-col overflow-hidden rounded-lg border border-outline-variant/60 bg-card shadow-[var(--shadow-clinical)] transition-all hover:-translate-y-0.5 hover:border-accent/60 hover:shadow-[var(--shadow-clinical-md)] dark:border-white/[0.07]"
+              >
+                <div className="relative">
+                  <CourseCover title={course.title} src={course.coverImage} />
+                  <div className="absolute right-3 top-3">
+                    <Badge variant={badge.variant}>{badge.label}</Badge>
+                  </div>
+                </div>
+                <div className="flex flex-1 flex-col p-5">
+                  <h2 className="text-title-md text-on-surface group-hover:text-accent">
+                    {course.title}
+                  </h2>
+                  {course.summary && (
+                    <p className="mt-1.5 line-clamp-2 text-sm text-on-surface-variant">
+                      {course.summary}
+                    </p>
+                  )}
+                  <p className="mt-4 flex items-center gap-2 text-data-mono text-on-surface-variant">
+                    {course._count.modules} module
+                    {course._count.modules === 1 ? "" : "s"}
+                    <span className="text-outline-variant">·</span>
+                    {course._count.enrollments} enrolled
+                  </p>
+                </div>
+              </Link>
+            );
+          })}
         </div>
       )}
     </div>

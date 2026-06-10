@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
+import { removeWhiteBackground } from "@/lib/remove-background";
 
 type Area = { x: number; y: number; width: number; height: number };
 export type SaveState = "idle" | "saving" | "done";
@@ -21,6 +22,10 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function cropToFile(src: string, area: Area): Promise<File> {
   const img = new Image();
+  // Clean canvas for remote (Vercel Blob) sources too — lets "Edit current
+  // photo" re-crop a stored image without tainting toBlob. Harmless on
+  // blob:/data: object URLs.
+  img.crossOrigin = "anonymous";
   img.src = src;
   await img.decode();
   const canvas = document.createElement("canvas");
@@ -46,7 +51,10 @@ async function cropToFile(src: string, area: Area): Promise<File> {
       0.95,
     ),
   );
-  return new File([blob], "photo.png", { type: "image/png" });
+  // Formal photos arrive on a white backdrop — strip it to transparency so
+  // the portrait composites cleanly onto the ID card and certificate.
+  const cleaned = await removeWhiteBackground(blob);
+  return new File([cleaned], "photo.png", { type: "image/png" });
 }
 
 function uploadWithProgress(
@@ -245,8 +253,23 @@ export function StudentPhotoPanel({
     e.target.value = "";
   }
 
+  /** Re-crop the photo already on the record: load it straight into the crop
+   *  dialog (cropToFile reads it cross-origin-clean). Apply then runs the
+   *  standard scan + upload pipeline and stages the new asset for save. */
+  function editCurrent() {
+    const src = preview ?? currentUrl;
+    if (!src) return;
+    setRawSrc(src);
+    setZoom(1);
+    setOpen(true);
+  }
+
   async function apply() {
-    if (!rawSrc || !area) return;
+    if (!rawSrc) return;
+    if (!area) {
+      toast.error("Adjust the crop, then apply.");
+      return;
+    }
     setOpen(false);
     try {
       const file = await cropToFile(rawSrc, area);
@@ -327,6 +350,18 @@ export function StudentPhotoPanel({
       />
       <input type="hidden" name="photoAssetId" value={assetId} readOnly />
 
+      {preview && (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="w-full"
+          onClick={editCurrent}
+        >
+          <Crop aria-hidden /> Edit current photo
+        </Button>
+      )}
+
       <div className="grid gap-2">
         <IntegrationCard
           icon={ICONS.virustotal}
@@ -364,13 +399,14 @@ export function StudentPhotoPanel({
             <Cropper.Root
               image={rawSrc}
               aspectRatio={4 / 5}
+              cropPadding={0}
               zoom={zoom}
               onZoomChange={setZoom}
               onCropChange={setArea}
-              className="relative h-72 w-full overflow-hidden rounded-md bg-inverse-surface"
+              className="relative mx-auto aspect-[4/5] h-[min(60svh,480px)] overflow-hidden rounded-md bg-inverse-surface"
             >
               <Cropper.Image className="h-full w-full object-cover" />
-              <Cropper.CropArea className="border-2 border-on-primary/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.5)]" />
+              <Cropper.CropArea className="border-2 border-white/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.5)]" />
             </Cropper.Root>
           )}
           <label className="flex items-center gap-3 text-xs text-on-surface-variant">

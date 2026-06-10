@@ -75,8 +75,10 @@ export function Sidebar({
   return (
     <aside
       className={cn(
-        "hidden shrink-0 flex-col overflow-hidden md:flex",
-        "bg-primary text-on-primary",
+        // sticky + viewport height so the rail stays put and scrolls its own
+        // nav, instead of stretching to the (taller) page content.
+        "sticky top-0 hidden h-svh shrink-0 flex-col self-start overflow-hidden md:flex",
+        "border-r border-outline-variant bg-sidebar text-on-surface dark:border-white/[0.06]",
         "transition-[width] duration-300 ease-in-out",
         open ? "w-64" : "w-12",
         className,
@@ -166,7 +168,10 @@ export function SidebarFooter({
 }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn("border-t border-on-primary/10", className)}
+      className={cn(
+        "border-t border-outline-variant dark:border-white/[0.06]",
+        className,
+      )}
       {...props}
     />
   );
@@ -188,7 +193,7 @@ export function SidebarGroupLabel({
   return (
     <div
       className={cn(
-        "mb-1 px-3 text-[10px] font-semibold uppercase tracking-wider text-on-primary-container/50",
+        "mb-1 px-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-on-surface-variant/70",
         className,
       )}
       {...props}

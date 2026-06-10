@@ -5,17 +5,22 @@ import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import type { CourseActionState } from "@/app/dashboard/courses/actions";
+import { UploadInput } from "@/components/dashboard/upload-input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
+// Lifecycle (state) is intentionally absent: publishing/archiving go through
+// the explicit publish controls, never a form save.
 export type CourseDefaults = {
   title?: string;
   slug?: string;
   summary?: string;
   coverImage?: string;
-  status?: string;
+  estimatedMins?: number | null;
+  certificateEnabled?: boolean;
 };
 
 export function CourseForm({
@@ -63,33 +68,43 @@ export function CourseForm({
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="status">Status</Label>
-            <select
-              id="status"
-              name="status"
-              defaultValue={defaults.status ?? "DRAFT"}
-              className="h-11 rounded border border-outline-variant bg-card px-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
-            >
-              <option value="DRAFT">Draft</option>
-              <option value="PUBLISHED">Published</option>
-            </select>
-          </div>
-          <div className="flex flex-col gap-1.5 sm:col-span-2">
-            <Label htmlFor="coverImage">Cover image URL (optional)</Label>
+            <Label htmlFor="estimatedMins">Estimated time (minutes)</Label>
             <Input
+              id="estimatedMins"
+              name="estimatedMins"
+              type="number"
+              min={0}
+              defaultValue={defaults.estimatedMins ?? undefined}
+              placeholder="optional"
+            />
+          </div>
+          <label className="flex items-center gap-2.5 sm:col-span-1">
+            <input
+              type="checkbox"
+              name="certificateEnabled"
+              defaultChecked={defaults.certificateEnabled ?? true}
+              className="size-4 rounded border-outline-variant accent-accent"
+            />
+            <span className="text-sm text-on-surface">
+              Issue a CE certificate on completion
+            </span>
+          </label>
+          <div className="flex flex-col gap-1.5 sm:col-span-2">
+            <Label htmlFor="coverImage">Cover image (optional)</Label>
+            <UploadInput
               id="coverImage"
               name="coverImage"
               defaultValue={defaults.coverImage}
+              accept="image/*"
             />
           </div>
           <div className="flex flex-col gap-1.5 sm:col-span-2">
             <Label htmlFor="summary">Summary</Label>
-            <textarea
+            <Textarea
               id="summary"
               name="summary"
               defaultValue={defaults.summary}
               rows={3}
-              className="rounded border border-outline-variant bg-card px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
             />
           </div>
           <div className="flex items-center gap-3 sm:col-span-2">

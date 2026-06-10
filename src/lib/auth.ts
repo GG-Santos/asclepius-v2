@@ -3,7 +3,7 @@ import { prismaAdapter } from "better-auth/adapters/prisma";
 import { nextCookies } from "better-auth/next-js";
 import { prisma } from "@/lib/prisma";
 
-export type Role = "admin" | "writer" | "graduate";
+export type Role = "admin" | "writer" | "professor" | "graduate";
 
 export const auth = betterAuth({
   appName: "Asclepius",

@@ -22,6 +22,14 @@ function slugify(input: string): string {
   );
 }
 
+// TipTap serializes an empty doc as "<p></p>" — strip tags to detect blank.
+function stripHtml(html: string): string {
+  return html
+    .replace(/<[^>]*>/g, "")
+    .replace(/&nbsp;/gi, " ")
+    .trim();
+}
+
 async function uniqueSlug(base: string, excludeId?: string): Promise<string> {
   let slug = base;
   let i = 2;
@@ -52,6 +60,14 @@ function readFields(formData: FormData) {
     slugInput: String(formData.get("slug") ?? "").trim(),
     excerpt: String(formData.get("excerpt") ?? "").trim(),
     content: String(formData.get("content") ?? "").trim(),
+    tags: [
+      ...new Set(
+        formData
+          .getAll("tags")
+          .map((t) => String(t).trim())
+          .filter(Boolean),
+      ),
+    ],
     status:
       String(formData.get("status") ?? "DRAFT") === "PUBLISHED"
         ? "PUBLISHED"
@@ -67,7 +83,7 @@ export async function createPost(
   const f = readFields(formData);
   const fieldErrors: Record<string, string> = {};
   if (!f.title) fieldErrors.title = "Title is required.";
-  if (!f.content) fieldErrors.content = "Content is required.";
+  if (!stripHtml(f.content)) fieldErrors.content = "Content is required.";
   if (Object.keys(fieldErrors).length) return { fieldErrors };
 
   const slug = await uniqueSlug(slugify(f.slugInput || f.title));
@@ -79,6 +95,7 @@ export async function createPost(
       slug,
       excerpt: f.excerpt || null,
       content: f.content,
+      tags: [...f.tags],
       status: f.status,
       coverImage: coverImage ?? null,
       authorId: session.user.id,
@@ -100,7 +117,7 @@ export async function updatePost(
   const f = readFields(formData);
   const fieldErrors: Record<string, string> = {};
   if (!f.title) fieldErrors.title = "Title is required.";
-  if (!f.content) fieldErrors.content = "Content is required.";
+  if (!stripHtml(f.content)) fieldErrors.content = "Content is required.";
   if (Object.keys(fieldErrors).length) return { fieldErrors };
 
   const current = await prisma.blogPost.findUnique({ where: { id } });
@@ -118,6 +135,7 @@ export async function updatePost(
       slug,
       excerpt: f.excerpt || null,
       content: f.content,
+      tags: [...f.tags],
       status: f.status,
       ...(coverImage ? { coverImage } : {}),
       publishedAt: becomingPublished

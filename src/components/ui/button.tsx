@@ -4,18 +4,26 @@ import type * as React from "react";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-40 [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
-        // Deep Navy primary; hover transitions to Clinical Blue (per DESIGN.md).
-        default: "bg-primary text-on-primary hover:bg-accent",
+        // Vital Signs: high-contrast ink primary in light, inverted ink in
+        // dark. Accent is reserved for focus rings, links, and highlights.
+        default:
+          "bg-primary text-on-primary hover:bg-primary-container " +
+          "dark:hover:bg-on-surface dark:hover:shadow-[var(--glow-accent-soft)]",
         secondary:
           "bg-secondary text-on-secondary hover:bg-secondary-container",
+        destructive:
+          "border border-secondary/40 bg-secondary/5 text-secondary hover:bg-secondary hover:text-on-secondary " +
+          "dark:border-secondary/40 dark:bg-secondary/[0.08] dark:hover:bg-secondary dark:hover:text-white",
         outline:
-          "border border-outline-variant bg-card text-on-surface hover:border-accent hover:text-accent",
-        ghost: "text-on-surface-variant hover:bg-surface-container",
-        link: "text-accent underline-offset-4 hover:underline",
+          "border border-outline-variant bg-card text-on-surface hover:border-accent hover:text-accent " +
+          "dark:border-white/[0.1] dark:hover:border-accent/50 dark:hover:bg-accent/[0.06]",
+        ghost:
+          "text-on-surface-variant hover:bg-surface-container dark:hover:bg-white/[0.05]",
+        link: "text-accent underline-offset-4 hover:underline dark:text-accent-bright",
       },
       size: {
         // 48px default height per DESIGN.md primary button spec.

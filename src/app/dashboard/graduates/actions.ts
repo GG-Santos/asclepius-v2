@@ -273,6 +273,49 @@ export async function createGraduateAccount(
   return { ok: true };
 }
 
+/** "MMM dd, yyyy" — the registry's raw date string style. */
+function formatRawDate(d: Date): string {
+  return d.toLocaleDateString("en-US", {
+    month: "short",
+    day: "2-digit",
+    year: "numeric",
+  });
+}
+
+/**
+ * One-click renewal: the license gains one year past its current expiry, and
+ * the previous expiry becomes the latest re-certification date. With no
+ * expiry on record, the year counts from today.
+ */
+export async function renewGraduate(formData: FormData): Promise<void> {
+  await requireAdmin();
+  const id = String(formData.get("id") ?? "");
+  if (!id) return;
+
+  const g = await prisma.graduate.findUnique({ where: { id } });
+  if (!g || g.status !== "GRADUATE") return;
+
+  const base = g.expiresAt ?? new Date();
+  const newExpiry = new Date(base);
+  newExpiry.setFullYear(newExpiry.getFullYear() + 1);
+
+  await prisma.graduate.update({
+    where: { id },
+    data: {
+      // Previous expiry → latest re-certification (kept if none existed).
+      registeredAt: g.expiresAt ?? g.registeredAt,
+      registrationRaw:
+        g.expirationRaw ??
+        (g.expiresAt ? formatRawDate(g.expiresAt) : g.registrationRaw),
+      expiresAt: newExpiry,
+      expirationRaw: formatRawDate(newExpiry),
+    },
+  });
+
+  revalidatePath("/dashboard/graduates");
+  revalidatePath(`/dashboard/graduates/${id}`);
+}
+
 export async function setGraduateStatus(formData: FormData): Promise<void> {
   await requireAdmin();
   const id = String(formData.get("id") ?? "");
@@ -284,4 +327,24 @@ export async function setGraduateStatus(formData: FormData): Promise<void> {
     await prisma.graduate.update({ where: { id }, data: { status } });
     revalidatePath("/dashboard/graduates");
   }
+}
+
+/**
+ * Auto-archive graduates whose license has been expired for 2+ years
+ * (GRADUATE → ARCHIVED). Idempotent — a no-op when nothing qualifies. Run
+ * opportunistically on admin app load (and safe to call from a cron route).
+ */
+export async function autoArchiveExpired(): Promise<{ archived: number }> {
+  await requireAdmin();
+  const cutoff = new Date();
+  cutoff.setFullYear(cutoff.getFullYear() - 2);
+  const res = await prisma.graduate.updateMany({
+    where: { status: "GRADUATE", expiresAt: { lt: cutoff } },
+    data: { status: "ARCHIVED" },
+  });
+  if (res.count > 0) {
+    revalidatePath("/dashboard/graduates");
+    revalidatePath("/dashboard/batches");
+  }
+  return { archived: res.count };
 }

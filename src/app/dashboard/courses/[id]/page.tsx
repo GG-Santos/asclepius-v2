@@ -1,20 +1,25 @@
-import { ArrowLeft, ExternalLink, Trash2 } from "lucide-react";
+import { ArrowLeft, ExternalLink, Plus, Trash2, Users } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   createModule,
   deleteCourse,
-  deleteLesson,
-  deleteModule,
   updateCourse,
 } from "@/app/dashboard/courses/actions";
+import { ConfirmActionDialog } from "@/components/dashboard/confirm-action-dialog";
+import {
+  type ChecklistStep,
+  CourseChecklist,
+} from "@/components/dashboard/course-checklist";
 import { CourseForm } from "@/components/dashboard/course-form";
-import { LessonDialog } from "@/components/dashboard/lesson-dialog";
-import { Badge } from "@/components/ui/badge";
+import {
+  CurriculumList,
+  type CurriculumModule,
+} from "@/components/dashboard/curriculum-list";
+import { CoursePublishControl } from "@/components/dashboard/publish-controls";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { prisma } from "@/lib/prisma";
+import { coursesPrisma } from "@/lib/courses-db";
 import { requireAdmin } from "@/lib/session";
 
 export default async function CourseEditorPage({
@@ -25,21 +30,138 @@ export default async function CourseEditorPage({
   await requireAdmin();
   const { id } = await params;
 
-  const course = await prisma.course.findUnique({
+  const course = await coursesPrisma.course.findUnique({
     where: { id },
     include: {
       modules: {
-        orderBy: { order: "asc" },
-        include: { lessons: { orderBy: { order: "asc" } } },
+        where: { state: { not: "DELETED" } },
+        orderBy: { position: "asc" },
+        include: {
+          items: {
+            where: { state: { not: "DELETED" } },
+            orderBy: { position: "asc" },
+          },
+        },
       },
     },
   });
-  if (!course) notFound();
+  if (!course || course.state === "DELETED") notFound();
 
-  const lessonCount = course.modules.reduce(
-    (sum, m) => sum + m.lessons.length,
-    0,
+  // Checklist + publish-coherence inputs, all derived from live data.
+  const [pages, quizzes, activeEnrollments] = await Promise.all([
+    coursesPrisma.page.findMany({
+      where: { courseId: id, state: { not: "DELETED" } },
+      select: { id: true, body: true },
+    }),
+    coursesPrisma.quiz.findMany({
+      where: { courseId: id, state: { not: "DELETED" } },
+      select: { id: true, _count: { select: { questions: true } } },
+    }),
+    coursesPrisma.enrollment.count({
+      where: { courseId: id, state: "ACTIVE", completedAt: null },
+    }),
+  ]);
+
+  const itemCount = course.modules.reduce((s, m) => s + m.items.length, 0);
+  const publishedItemCount = course.modules
+    .filter((m) => m.state === "PUBLISHED")
+    .reduce(
+      (s, m) => s + m.items.filter((i) => i.state === "PUBLISHED").length,
+      0,
+    );
+  const hasMustPassQuiz = course.modules.some(
+    (m) =>
+      m.state === "PUBLISHED" &&
+      m.items.some(
+        (i) =>
+          i.state === "PUBLISHED" &&
+          i.type === "QUIZ" &&
+          i.completionRequirement === "MUST_PASS",
+      ),
   );
+
+  const emptyPage = pages.find((p) => !p.body.trim());
+  const emptyQuiz = quizzes.find((q) => q._count.questions === 0);
+
+  // Canvas course-wizard rule: `done` is always computed from what exists,
+  // never manually ticked.
+  const checklistSteps: ChecklistStep[] = [
+    {
+      key: "modules",
+      title: "Add a module",
+      text: "Modules group your content — graduates work through them in order.",
+      done: course.modules.length > 0,
+      href: "#curriculum",
+    },
+    {
+      key: "items",
+      title: "Add content items",
+      text: "Pages, videos, files, links, and quizzes are what graduates actually open.",
+      done: itemCount > 0,
+      href: "#curriculum",
+    },
+    {
+      key: "page-content",
+      title: "Write your pages",
+      text: "Every page should have content before graduates see it.",
+      done: pages.length > 0 ? !emptyPage : itemCount > 0,
+      href: emptyPage
+        ? `/dashboard/courses/${course.id}/pages/${emptyPage.id}`
+        : "#curriculum",
+    },
+    {
+      key: "quiz-questions",
+      title: "Build your quizzes",
+      text: "A quiz needs at least one question to produce a score.",
+      done: quizzes.length > 0 ? !emptyQuiz : itemCount > 0,
+      href: emptyQuiz
+        ? `/dashboard/courses/${course.id}/quizzes/${emptyQuiz.id}`
+        : "#curriculum",
+    },
+    {
+      key: "cover",
+      title: "Add a cover and summary",
+      text: "The portal card sells the course — give it an image and a one-liner.",
+      done: Boolean(course.coverImage && course.summary),
+      href: "#course-settings",
+    },
+    {
+      key: "publish-content",
+      title: "Publish modules and items",
+      text: "Graduates only see published modules containing published items.",
+      done: publishedItemCount > 0,
+      href: "#curriculum",
+    },
+    {
+      key: "publish-course",
+      title: "Publish the course",
+      text: "The final step — this puts the course in the graduate portal.",
+      done: course.state === "PUBLISHED",
+      href: "#publish-controls",
+    },
+  ];
+
+  const curriculumModules: CurriculumModule[] = course.modules.map((m) => ({
+    id: m.id,
+    title: m.title,
+    state: m.state,
+    requireSequentialProgress: m.requireSequentialProgress,
+    requirementCount: m.requirementCount,
+    prerequisiteModuleIds: m.prerequisiteModuleIds,
+    unlockAt: m.unlockAt?.toISOString() ?? null,
+    items: m.items.map((it) => ({
+      id: it.id,
+      title: it.title,
+      type: it.type,
+      url: it.url,
+      indent: it.indent,
+      state: it.state,
+      completionRequirement: it.completionRequirement,
+      minScore: it.minScore,
+      estimatedMins: it.estimatedMins,
+      contentId: it.contentId,
+    })),
+  }));
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -50,165 +172,126 @@ export default async function CourseEditorPage({
         >
           <ArrowLeft className="size-4" /> Courses
         </Link>
-        {course.status === "PUBLISHED" && (
+        <div className="flex items-center gap-1">
           <Button asChild variant="ghost" size="sm">
-            <Link href={`/portal/courses/${course.slug}`} target="_blank">
-              <ExternalLink aria-hidden /> View in portal
+            <Link href={`/dashboard/courses/${course.id}/roster`}>
+              <Users aria-hidden /> Roster
             </Link>
           </Button>
-        )}
+          {course.state === "PUBLISHED" && (
+            <Button asChild variant="ghost" size="sm">
+              <Link href={`/portal/courses/${course.slug}`} target="_blank">
+                <ExternalLink aria-hidden /> View in portal
+              </Link>
+            </Button>
+          )}
+        </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-2xl font-bold text-on-surface">{course.title}</h1>
-        <Badge variant={course.status === "PUBLISHED" ? "verified" : "neutral"}>
-          {course.status === "PUBLISHED" ? "Published" : "Draft"}
-        </Badge>
+      <div
+        id="publish-controls"
+        className="flex flex-wrap items-center justify-between gap-3"
+      >
+        <h1 className="text-headline-lg text-on-surface">{course.title}</h1>
+        <CoursePublishControl
+          courseId={course.id}
+          state={course.state}
+          publishedItemCount={publishedItemCount}
+          certificateEnabled={course.certificateEnabled}
+          hasMustPassQuiz={hasMustPassQuiz}
+          activeEnrollments={activeEnrollments}
+        />
       </div>
 
-      <CourseForm
-        action={updateCourse.bind(null, course.id)}
-        submitLabel="Save course"
-        showSuccessToast
-        defaults={{
-          title: course.title,
-          slug: course.slug,
-          summary: course.summary ?? undefined,
-          coverImage: course.coverImage ?? undefined,
-          status: course.status,
-        }}
-      />
+      {course.state !== "ARCHIVED" && (
+        <CourseChecklist steps={checklistSteps} />
+      )}
 
-      <section className="space-y-4">
+      <div id="course-settings">
+        <CourseForm
+          action={updateCourse.bind(null, course.id)}
+          submitLabel="Save course"
+          showSuccessToast
+          defaults={{
+            title: course.title,
+            slug: course.slug,
+            summary: course.summary ?? undefined,
+            coverImage: course.coverImage ?? undefined,
+            estimatedMins: course.estimatedMins,
+            certificateEnabled: course.certificateEnabled,
+          }}
+        />
+      </div>
+
+      <section id="curriculum" className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-on-surface">Curriculum</h2>
           <p className="text-sm text-on-surface-variant">
             {course.modules.length} module
-            {course.modules.length === 1 ? "" : "s"} · {lessonCount} lesson
-            {lessonCount === 1 ? "" : "s"}
+            {course.modules.length === 1 ? "" : "s"} · {itemCount} item
+            {itemCount === 1 ? "" : "s"}
+            {publishedItemCount < itemCount && (
+              <span className="text-data-mono">
+                {" "}
+                · {publishedItemCount} live
+              </span>
+            )}
           </p>
         </div>
 
-        {course.modules.map((module) => (
-          <Card key={module.id}>
-            <CardContent className="space-y-3 p-5">
-              <div className="flex items-center justify-between gap-2">
-                <h3 className="font-semibold text-on-surface">
-                  {module.title}
-                </h3>
-                <form action={deleteModule}>
-                  <input type="hidden" name="id" value={module.id} />
-                  <input type="hidden" name="courseId" value={course.id} />
-                  <button
-                    type="submit"
-                    title="Delete module"
-                    className="rounded p-1.5 text-on-surface-variant hover:bg-secondary/10 hover:text-secondary"
-                  >
-                    <Trash2 className="size-4" />
-                  </button>
-                </form>
-              </div>
+        <CurriculumList courseId={course.id} modules={curriculumModules} />
 
-              <ul className="divide-y divide-outline-variant/40 rounded border border-outline-variant/40">
-                {module.lessons.length === 0 ? (
-                  <li className="px-3 py-2 text-sm text-on-surface-variant">
-                    No lessons yet.
-                  </li>
-                ) : (
-                  module.lessons.map((lesson, i) => (
-                    <li
-                      key={lesson.id}
-                      className="flex items-center justify-between gap-2 px-3 py-2"
-                    >
-                      <span className="flex min-w-0 items-center gap-2 text-sm text-on-surface">
-                        <span className="text-on-surface-variant tabular-nums">
-                          {i + 1}.
-                        </span>
-                        <span className="truncate">{lesson.title}</span>
-                        {lesson.durationMins ? (
-                          <span className="shrink-0 text-xs text-on-surface-variant">
-                            {lesson.durationMins} min
-                          </span>
-                        ) : null}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <LessonDialog
-                          courseId={course.id}
-                          moduleId={module.id}
-                          lesson={{
-                            id: lesson.id,
-                            title: lesson.title,
-                            content: lesson.content,
-                            durationMins: lesson.durationMins,
-                          }}
-                        />
-                        <form action={deleteLesson}>
-                          <input type="hidden" name="id" value={lesson.id} />
-                          <input
-                            type="hidden"
-                            name="courseId"
-                            value={course.id}
-                          />
-                          <button
-                            type="submit"
-                            title="Delete lesson"
-                            className="rounded p-1.5 text-on-surface-variant hover:bg-secondary/10 hover:text-secondary"
-                          >
-                            <Trash2 className="size-4" />
-                          </button>
-                        </form>
-                      </span>
-                    </li>
-                  ))
-                )}
-              </ul>
-
-              <LessonDialog courseId={course.id} moduleId={module.id} />
-            </CardContent>
-          </Card>
-        ))}
-
-        <Card>
-          <CardContent className="p-5">
-            <form
-              action={createModule}
-              className="flex flex-wrap items-end gap-2"
+        <form
+          action={createModule}
+          className="flex flex-wrap items-end gap-2 rounded-lg border border-dashed border-outline-variant bg-surface-low/40 p-5 dark:bg-white/[0.02]"
+        >
+          <input type="hidden" name="courseId" value={course.id} />
+          <div className="min-w-[220px] flex-1">
+            <label
+              htmlFor="module-title"
+              className="mb-1.5 block text-label-caps text-on-surface-variant"
             >
-              <input type="hidden" name="courseId" value={course.id} />
-              <div className="min-w-[220px] flex-1">
-                <label
-                  htmlFor="module-title"
-                  className="mb-1.5 block text-sm font-medium text-on-surface"
-                >
-                  Add module
-                </label>
-                <Input
-                  id="module-title"
-                  name="title"
-                  placeholder="e.g. Airway Management"
-                  required
-                />
-              </div>
-              <Button type="submit" variant="outline">
-                Add module
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-      </section>
-
-      <section className="rounded-lg border border-secondary/30 bg-secondary/5 p-5">
-        <h2 className="font-semibold text-on-surface">Danger zone</h2>
-        <p className="mt-1 text-sm text-on-surface-variant">
-          Deleting a course removes all modules, lessons, enrollments, and
-          progress. This cannot be undone.
-        </p>
-        <form action={deleteCourse} className="mt-3">
-          <input type="hidden" name="id" value={course.id} />
-          <Button type="submit" variant="outline" className="text-secondary">
-            <Trash2 aria-hidden /> Delete course
+              Add module
+            </label>
+            <Input
+              id="module-title"
+              name="title"
+              placeholder="e.g. Airway Management"
+              required
+            />
+          </div>
+          <Button type="submit" variant="outline">
+            <Plus aria-hidden /> Add module
           </Button>
         </form>
+      </section>
+
+      <section className="rounded-lg border border-secondary/30 bg-secondary/5 p-5 dark:bg-secondary/[0.06]">
+        <h2 className="text-title-md text-on-surface">Danger zone</h2>
+        <p className="mt-1 text-sm text-on-surface-variant">
+          Deleting hides the course everywhere — dashboard and portal — while
+          keeping enrollments, progress, and issued certificates on record.
+          Prefer archiving to retire a finished course.
+        </p>
+        <div className="mt-3">
+          <ConfirmActionDialog
+            trigger={
+              <Button type="button" variant="destructive">
+                <Trash2 aria-hidden /> Delete course
+              </Button>
+            }
+            title={`Delete course “${course.title}”?`}
+            description="The course disappears from the dashboard and the portal."
+            consequences={[
+              `${course.modules.length} module${course.modules.length === 1 ? "" : "s"} and ${itemCount} item${itemCount === 1 ? "" : "s"} go with it`,
+              `${activeEnrollments} active enrollment${activeEnrollments === 1 ? "" : "s"} lose access`,
+              "Progress and certificate records are kept",
+            ]}
+            confirmLabel="Delete course"
+            action={deleteCourse}
+            fields={{ id: course.id }}
+          />
+        </div>
       </section>
     </div>
   );

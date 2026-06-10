@@ -1,13 +1,13 @@
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { updateStudent } from "@/app/dashboard/students/actions";
 import {
   type StudentDefaults,
   StudentForm,
 } from "@/components/dashboard/student-form";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/session";
+import { canProfessorEditBatch, requireUser } from "@/lib/session";
 import { parseGranularGrades } from "@/lib/student-grades";
 
 function numToStr(n: number | null | undefined): string | undefined {
@@ -19,7 +19,7 @@ export default async function EditStudentPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireAdmin();
+  const session = await requireUser();
   const { id } = await params;
 
   const s = await prisma.student.findUnique({
@@ -27,6 +27,18 @@ export default async function EditStudentPage({
     include: { photo: true },
   });
   if (!s) notFound();
+
+  // Admins edit any student; professors edit only their own active batches.
+  const role = session.user.role;
+  if (
+    role !== "admin" &&
+    !(
+      role === "professor" &&
+      (await canProfessorEditBatch(session.user.id, s.batchCode))
+    )
+  ) {
+    redirect("/dashboard?denied=area");
+  }
 
   const grades = parseGranularGrades(s.granularGrades);
 

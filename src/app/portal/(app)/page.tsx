@@ -1,13 +1,15 @@
 import { ArrowRight, BookOpen, CalendarClock, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { PortalPhotoUpdate } from "@/components/portal/portal-photo-update";
+import { PortalTestimonialForm } from "@/components/portal/portal-testimonial-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CredentialArtifacts } from "@/components/verify/credential-artifacts";
+import { coursesPrisma } from "@/lib/courses-db";
 import { displayName } from "@/lib/graduate";
 import { prisma } from "@/lib/prisma";
-import { verifyQrDataUrl } from "@/lib/qr";
+import { certificateQrDataUrl, verifyQrDataUrl } from "@/lib/qr";
 import { requireGraduate } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -20,14 +22,30 @@ function daysUntil(d: Date | null): number | null {
 export default async function PortalHome() {
   const { graduate: g } = await requireGraduate();
   const name = displayName(g);
-  const qrDataUrl = await verifyQrDataUrl(g.lcn);
+  const [qrDataUrl, certQrDataUrl] = await Promise.all([
+    verifyQrDataUrl(g.lcn),
+    certificateQrDataUrl(g.lcn),
+  ]);
   const left = daysUntil(g.expiresAt);
 
-  const [publishedCount, enrolledCount, completedCount] = await Promise.all([
-    prisma.course.count({ where: { status: "PUBLISHED" } }),
-    prisma.enrollment.count({ where: { graduateLcn: g.lcn } }),
-    prisma.enrollment.count({
+  const [
+    publishedCount,
+    enrolledCount,
+    completedCount,
+    inProgressCount,
+    myTestimonial,
+  ] = await Promise.all([
+    coursesPrisma.course.count({ where: { state: "PUBLISHED" } }),
+    coursesPrisma.enrollment.count({ where: { graduateLcn: g.lcn } }),
+    coursesPrisma.enrollment.count({
       where: { graduateLcn: g.lcn, completedAt: { not: null } },
+    }),
+    coursesPrisma.enrollment.count({
+      where: { graduateLcn: g.lcn, state: "ACTIVE", completedAt: null },
+    }),
+    prisma.testimonial.findFirst({
+      where: { submittedByLcn: g.lcn },
+      orderBy: { createdAt: "desc" },
     }),
   ]);
 
@@ -54,6 +72,20 @@ export default async function PortalHome() {
             <span>
               Your license expires in {left} day{left === 1 ? "" : "s"} (
               {g.expirationRaw}). Renew before it lapses to keep portal access.
+              {inProgressCount > 0 && (
+                <>
+                  {" "}
+                  You have {inProgressCount} CE course
+                  {inProgressCount === 1 ? "" : "s"} in progress —{" "}
+                  <Link
+                    href="/portal/courses"
+                    className="font-medium underline underline-offset-2 hover:opacity-80"
+                  >
+                    finish them for your records
+                  </Link>{" "}
+                  before renewal.
+                </>
+              )}
             </span>
           </CardContent>
         </Card>
@@ -69,6 +101,7 @@ export default async function PortalHome() {
               expiration={g.expirationRaw}
               photoUrl={g.photo?.url ?? null}
               qrDataUrl={qrDataUrl}
+              certQrDataUrl={certQrDataUrl}
             />
             <PortalPhotoUpdate currentUrl={g.photo?.url ?? null} />
           </CardContent>
@@ -134,6 +167,19 @@ export default async function PortalHome() {
               </Button>
             </CardContent>
           </Card>
+
+          <PortalTestimonialForm
+            existing={
+              myTestimonial
+                ? {
+                    quote: myTestimonial.quote,
+                    rating: myTestimonial.rating,
+                    approved: myTestimonial.approved,
+                    pinned: myTestimonial.pinned,
+                  }
+                : null
+            }
+          />
         </div>
       </div>
     </div>

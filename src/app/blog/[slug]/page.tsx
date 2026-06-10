@@ -3,7 +3,10 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { BlogModelIslands } from "@/components/blog-model-islands";
 import { prisma } from "@/lib/prisma";
+import { readTime } from "@/lib/read-time";
+import { sanitizeBlogHtml } from "@/lib/sanitize-html";
 
 export const dynamic = "force-dynamic";
 
@@ -21,49 +24,6 @@ export async function generateMetadata({
   return { title: post.title, description: post.excerpt ?? undefined };
 }
 
-// Minimal, dependency-free Markdown rendering: headings, list items, paragraphs.
-function renderContent(content: string) {
-  const blocks = content.split(/\n{2,}/);
-  return blocks.map((block, i) => {
-    const trimmed = block.trim();
-    const key = `${i}:${trimmed.slice(0, 16)}`;
-    if (trimmed.startsWith("## ")) {
-      return (
-        <h2 key={key} className="mt-8 text-xl font-bold text-on-surface">
-          {trimmed.slice(3)}
-        </h2>
-      );
-    }
-    if (trimmed.startsWith("# ")) {
-      return (
-        <h2 key={key} className="mt-8 text-2xl font-bold text-on-surface">
-          {trimmed.slice(2)}
-        </h2>
-      );
-    }
-    if (trimmed.split("\n").every((l) => l.trim().startsWith("- "))) {
-      return (
-        <ul
-          key={key}
-          className="my-4 list-disc space-y-1 pl-6 text-on-surface-variant"
-        >
-          {trimmed.split("\n").map((l) => (
-            <li key={l}>{l.trim().slice(2)}</li>
-          ))}
-        </ul>
-      );
-    }
-    return (
-      <p
-        key={key}
-        className="my-4 whitespace-pre-line leading-7 text-on-surface-variant"
-      >
-        {trimmed}
-      </p>
-    );
-  });
-}
-
 export default async function BlogPostPage({
   params,
 }: {
@@ -75,6 +35,20 @@ export default async function BlogPostPage({
     include: { author: { select: { name: true } } },
   });
   if (!post) notFound();
+
+  // Resolve any embedded 3D models (placeholders -> viewer urls) for hydration.
+  const modelSlugs = [...post.content.matchAll(/data-model3d="([^"]+)"/g)].map(
+    (m) => m[1],
+  );
+  const modelRows = modelSlugs.length
+    ? await prisma.model3D.findMany({
+        where: { slug: { in: modelSlugs }, public: true },
+        select: { slug: true, fileUrl: true },
+      })
+    : [];
+  const modelMap = Object.fromEntries(
+    modelRows.map((m) => [m.slug, m.fileUrl]),
+  );
 
   return (
     <div className="flex min-h-svh flex-col">
@@ -104,7 +78,8 @@ export default async function BlogPostPage({
             {post.author.name}
             {post.publishedAt
               ? ` · ${post.publishedAt.toLocaleDateString()}`
-              : ""}
+              : ""}{" "}
+            · {readTime(post.content)} min read
           </p>
           <div className="relative mt-6 aspect-[16/9] w-full overflow-hidden rounded-lg bg-surface-highest">
             <Image
@@ -119,7 +94,28 @@ export default async function BlogPostPage({
               priority
             />
           </div>
-          <div className="mt-6">{renderContent(post.content)}</div>
+          {post.tags.length > 0 && (
+            <div className="mt-5 flex flex-wrap gap-1.5">
+              {post.tags.map((t) => (
+                <span
+                  key={t}
+                  className="rounded-full bg-accent/10 px-2.5 py-0.5 text-xs font-medium text-accent"
+                >
+                  {t}
+                </span>
+              ))}
+            </div>
+          )}
+          <div
+            className="blog-prose mt-6"
+            // biome-ignore lint/security/noDangerouslySetInnerHtml: sanitized via sanitizeBlogHtml (DOMPurify)
+            dangerouslySetInnerHTML={{
+              __html: sanitizeBlogHtml(post.content),
+            }}
+          />
+          {Object.keys(modelMap).length > 0 && (
+            <BlogModelIslands models={modelMap} />
+          )}
         </article>
       </main>
     </div>

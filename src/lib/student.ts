@@ -27,30 +27,35 @@ function round2(n: number): number {
 }
 
 /**
- * Convert student raw scores + quiz grades into the six graduate
- * percentage-based proficiency scores.
+ * Convert student raw scores + quiz grades into the six graduate proficiency
+ * scores, stored as already-WEIGHTED POINTS (each exam scaled by its weight so
+ * the six sum to the 0–100 Total). This matches how imported graduate records
+ * store their scores, so a promoted student is unit-consistent with legacy data.
  *
- * Conversion table:
- *   scoreFWE  → raw / 1000 × 100  (1000-pt written exam → %)
- *   scoreSJE  → quiz total / 800 × 100  (Q1-Q10 → SJE %)
- *   scoreEP   → raw (already 0-100, Ambulance Equipment)
- *   scorePAS  → raw / 200 × 100  (200-pt verbalization → %)
- *   scoreCCST → raw (already 0-100)
- *   scoreCCSM → raw (already 0-100)
+ * Conversion (raw → percent → weighted points):
+ *   scoreFWE  → raw/1000 × 100 × 0.10   (1000-pt written exam, weight 10% → ≤10)
+ *   scoreSJE  → quiz%      × 0.15        (Q1–Q10 → SJE %, weight 15% → ≤15)
+ *   scoreEP   → raw(0-100) × 0.10        (Ambulance Equipment, weight 10% → ≤10)
+ *   scorePAS  → raw/200 × 100 × 0.15     (200-pt verbalization, weight 15% → ≤15)
+ *   scoreCCST → raw(0-100) × 0.25        (Trauma, weight 25% → ≤25)
+ *   scoreCCSM → raw(0-100) × 0.25        (Medical, weight 25% → ≤25)
  */
 export function rollupGraduateScores(
   student: StudentRawScores,
 ): GraduateSixScores {
   const grades = parseGranularGrades(student.granularGrades);
+  const sjePct = quizToSjePct(grades);
   return {
     scoreFWE:
-      student.scoreFWE !== null ? round2(student.scoreFWE / 1000 * 100) : null,
-    scoreSJE: quizToSjePct(grades),
-    scoreEP: student.scoreEP,
+      student.scoreFWE !== null ? round2((student.scoreFWE / 1000) * 10) : null,
+    scoreSJE: sjePct !== null ? round2(sjePct * 0.15) : null,
+    scoreEP: student.scoreEP !== null ? round2(student.scoreEP * 0.1) : null,
     scorePAS:
-      student.scorePAS !== null ? round2(student.scorePAS / 200 * 100) : null,
-    scoreCCST: student.scoreCCST,
-    scoreCCSM: student.scoreCCSM,
+      student.scorePAS !== null ? round2((student.scorePAS / 200) * 15) : null,
+    scoreCCST:
+      student.scoreCCST !== null ? round2(student.scoreCCST * 0.25) : null,
+    scoreCCSM:
+      student.scoreCCSM !== null ? round2(student.scoreCCSM * 0.25) : null,
   };
 }
 

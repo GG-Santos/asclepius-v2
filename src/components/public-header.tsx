@@ -66,9 +66,9 @@ export async function PublicHeader({
     <header className="sticky top-0 z-30 border-b border-outline-variant bg-surface/85 backdrop-blur-sm">
       <div className="mx-auto flex h-16 w-full max-w-[1200px] items-center justify-between px-4 md:px-8">
         <Link href="/" className="flex items-center gap-2.5">
-          <StarOfLifeIcon className="size-8 shrink-0 text-primary" />
+          <StarOfLifeIcon className="size-8 shrink-0 text-primary dark:text-accent-bright" />
           <span className="flex flex-col leading-none">
-            <span className="text-sm font-extrabold tracking-tight text-primary">
+            <span className="text-sm font-extrabold tracking-tight text-primary dark:text-accent-bright">
               WSL EMS
             </span>
             <span className="text-[10px] font-medium uppercase tracking-widest text-on-surface-variant">
@@ -80,26 +80,26 @@ export async function PublicHeader({
         <nav className="flex items-center gap-5 text-sm sm:gap-7">
           <Link
             href={verifyHref}
-            className="hidden text-on-surface-variant transition-colors hover:text-primary sm:inline"
+            className="hidden text-on-surface-variant transition-colors hover:text-primary dark:hover:text-accent-bright sm:inline"
           >
             Verify
           </Link>
           <Link
             href="/#programs"
-            className="hidden text-on-surface-variant transition-colors hover:text-primary sm:inline"
+            className="hidden text-on-surface-variant transition-colors hover:text-primary dark:hover:text-accent-bright sm:inline"
           >
             Programs
           </Link>
           <Link
             href="/blog"
-            className="hidden text-on-surface-variant transition-colors hover:text-primary sm:inline"
+            className="hidden text-on-surface-variant transition-colors hover:text-primary dark:hover:text-accent-bright sm:inline"
           >
             News
           </Link>
           {session && (
             <Link
               href="/docs"
-              className="hidden text-on-surface-variant transition-colors hover:text-primary sm:inline"
+              className="hidden text-on-surface-variant transition-colors hover:text-primary dark:hover:text-accent-bright sm:inline"
             >
               Help
             </Link>
@@ -108,7 +108,7 @@ export async function PublicHeader({
           {session ? (
             <Link
               href="/dashboard"
-              className="inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-3.5 font-semibold text-on-primary transition-colors hover:bg-accent"
+              className="inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-3.5 font-semibold text-on-primary transition-colors hover:bg-accent dark:bg-accent dark:text-white dark:hover:bg-accent-bright"
             >
               <LayoutDashboard className="size-4" aria-hidden />
               <span className="hidden sm:inline">Dashboard</span>
@@ -117,7 +117,7 @@ export async function PublicHeader({
           ) : (
             <Link
               href={verifyHref}
-              className="inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-3.5 font-semibold text-on-primary transition-colors hover:bg-accent"
+              className="inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-3.5 font-semibold text-on-primary transition-colors hover:bg-accent dark:bg-accent dark:text-white dark:hover:bg-accent-bright"
             >
               <Search className="size-4" aria-hidden />
               <span className="hidden sm:inline">Verify a license</span>

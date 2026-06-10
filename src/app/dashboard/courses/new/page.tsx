@@ -18,7 +18,7 @@ export default async function NewCoursePage() {
       <div>
         <h1 className="text-2xl font-bold text-on-surface">New course</h1>
         <p className="mt-1 text-sm text-on-surface-variant">
-          Create the course, then add modules and lessons.
+          Create the course, then add modules, pages, and quizzes.
         </p>
       </div>
       <CourseForm action={createCourse} submitLabel="Create course" />

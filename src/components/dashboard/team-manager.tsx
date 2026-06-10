@@ -1,16 +1,25 @@
 "use client";
 
-import { CheckCircle2, Circle, Plus, Trash2 } from "lucide-react";
+import { CheckCircle2, Circle, Contact, Plus, Trash2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useActionState, useEffect, useRef, useTransition } from "react";
+import {
+  useActionState,
+  useEffect,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import { toast } from "sonner";
 import {
   createTeamMember,
   deleteTeamMember,
   setTeamPublished,
 } from "@/app/dashboard/team/actions";
+import { ConfirmButton } from "@/components/dashboard/confirm-button";
+import { PageHeader } from "@/components/dashboard/page-header";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -23,7 +32,7 @@ export type TeamRow = {
   published: boolean;
 };
 
-function CreateForm() {
+function CreateForm({ onDone }: { onDone: () => void }) {
   const [state, action, pending] = useActionState(createTeamMember, {});
   const formRef = useRef<HTMLFormElement>(null);
   const router = useRouter();
@@ -34,16 +43,14 @@ function CreateForm() {
       toast.success("Team member added — publish to show on the homepage.");
       formRef.current?.reset();
       router.refresh();
+      onDone();
     }
     if (state.error) toast.error(state.error);
-  }, [state, router]);
+  }, [state, router, onDone]);
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Add team member</CardTitle>
-      </CardHeader>
-      <CardContent>
+      <CardContent className="pt-6">
         <form
           ref={formRef}
           action={action}
@@ -94,6 +101,7 @@ function CreateForm() {
 export function TeamManager({ rows }: { rows: TeamRow[] }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [showForm, setShowForm] = useState(false);
 
   function toggle(row: TeamRow) {
     const fd = new FormData();
@@ -108,25 +116,37 @@ export function TeamManager({ rows }: { rows: TeamRow[] }) {
     });
   }
 
-  function remove(row: TeamRow) {
-    if (!confirm(`Delete ${row.name}?`)) return;
-    const fd = new FormData();
-    fd.set("id", row.id);
-    startTransition(async () => {
-      await deleteTeamMember(fd);
-      toast.success("Deleted.");
-      router.refresh();
-    });
-  }
-
   return (
     <div className="space-y-6">
-      <CreateForm />
+      <PageHeader
+        title="Team"
+        meta={
+          <p>
+            Instructors and staff shown on the homepage. Only published members
+            are public.
+          </p>
+        }
+        actions={
+          <Button onClick={() => setShowForm((v) => !v)}>
+            {showForm ? <X aria-hidden /> : <Plus aria-hidden />}
+            {showForm ? "Close" : "New member"}
+          </Button>
+        }
+      />
+
+      {showForm && <CreateForm onDone={() => setShowForm(false)} />}
 
       {rows.length === 0 ? (
-        <p className="rounded-lg border border-outline-variant bg-card p-8 text-center text-sm text-on-surface-variant">
-          No team members yet. Published members appear on the homepage.
-        </p>
+        <EmptyState
+          icon={<Contact aria-hidden />}
+          title="No team members yet"
+          description="Add one and publish it to show on the homepage."
+          action={
+            <Button onClick={() => setShowForm(true)}>
+              <Plus aria-hidden /> New member
+            </Button>
+          }
+        />
       ) : (
         <div className="space-y-3">
           {rows.map((r) => (
@@ -162,15 +182,21 @@ export function TeamManager({ rows }: { rows: TeamRow[] }) {
                   <Circle className="size-5" />
                 )}
               </button>
-              <button
-                type="button"
-                disabled={pending}
-                onClick={() => remove(r)}
-                title="Delete"
-                className="rounded p-1.5 text-on-surface-variant hover:bg-secondary/10 hover:text-secondary"
+              <ConfirmButton
+                buttonTitle="Delete"
+                className="rounded p-1.5 text-on-surface-variant transition-colors hover:bg-secondary/10 hover:text-secondary"
+                title={`Delete ${r.name}?`}
+                description="This permanently removes the team member. This cannot be undone."
+                successMessage="Deleted."
+                onConfirm={async () => {
+                  const fd = new FormData();
+                  fd.set("id", r.id);
+                  await deleteTeamMember(fd);
+                  router.refresh();
+                }}
               >
                 <Trash2 className="size-4" />
-              </button>
+              </ConfirmButton>
             </div>
           ))}
         </div>

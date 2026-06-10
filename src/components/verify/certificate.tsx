@@ -1,7 +1,8 @@
-// Faithful reproduction of the reference certificate: the original SVG artwork
-// layers (served from /public, not bundled) with the record data overlaid as
-// SVG text, and the photo embedded via an SVG <image> (which the browser
-// fetches directly, bypassing the Next image optimizer).
+// Certificate V2 — the new layered artwork (public/assets/svg/CertificateV2,
+// canvas 6900×5209) with live record data composited at the design's
+// placeholder slots: photo, name, award date, license number, and an
+// embedded verification QR (the design's QR-logo layer sits on top of it).
+// Signature layers are admin-only — never rendered on the public surface.
 
 const ONES = [
   "",
@@ -65,9 +66,72 @@ function dayWithSuffix(day: number): string {
 }
 
 const LAYER = "absolute inset-0 h-full w-full";
-const LAYERS = Array.from({ length: 23 }, (_, i) => i); // 0..22 artwork
+const ART = "/assets/svg/CertificateV2";
 
-function CertName({ name }: { name: string }) {
+export type SignatureSlot = "one" | "two" | "three";
+export type SignatureVisibility = Partial<Record<SignatureSlot, boolean>>;
+
+type LayerEntry =
+  | { kind: "static"; file: string }
+  | { kind: "signature"; file: string; slot: SignatureSlot }
+  | { kind: "warning"; file: string }
+  | { kind: "photo" }
+  | { kind: "photo-watermark" }
+  | { kind: "name" }
+  | { kind: "date" }
+  | { kind: "lcn" }
+  | { kind: "qr" };
+
+/** Exact artwork stacking order (1 = back, 36 = front). Dynamic entries
+ *  replace the design's sample placeholders at the same depth. */
+const LAYERS: LayerEntry[] = [
+  { kind: "static", file: "01-background.svg" },
+  { kind: "static", file: "02-main-logo-watermark.svg" },
+  { kind: "static", file: "03-secondary-logo.svg" },
+  { kind: "static", file: "04-tertiary-logo.svg" },
+  { kind: "photo" },
+  { kind: "static", file: "06-training-center-name.svg" },
+  { kind: "static", file: "07-certificate-type.svg" },
+  { kind: "static", file: "08-to.svg" },
+  { kind: "name" },
+  { kind: "static", file: "10-this.svg" },
+  { kind: "static", file: "11-completion-text.svg" },
+  { kind: "static", file: "12a-center-bar.svg" },
+  { kind: "static", file: "12b-training-text.svg" },
+  { kind: "static", file: "13-recognition-text.svg" },
+  { kind: "date" },
+  { kind: "static", file: "15-position-1.svg" },
+  { kind: "static", file: "16-signatory-1.svg" },
+  { kind: "signature", file: "17-signature-1.svg", slot: "one" },
+  { kind: "static", file: "18-position-2.svg" },
+  { kind: "static", file: "19-signatory-2.svg" },
+  { kind: "signature", file: "20-signature-2.svg", slot: "two" },
+  { kind: "static", file: "21-position-3.svg" },
+  { kind: "static", file: "22-signatory-3.svg" },
+  { kind: "signature", file: "22b-signature-3.svg", slot: "three" },
+  { kind: "static", file: "23-border-main.svg" },
+  { kind: "static", file: "24-border-triangle-left.svg" },
+  { kind: "static", file: "25-border-triangle-right.svg" },
+  { kind: "static", file: "26-border-top.svg" },
+  { kind: "photo-watermark" },
+  { kind: "static", file: "28-border-liner.svg" },
+  { kind: "static", file: "29-border-banner.svg" },
+  { kind: "static", file: "30-main-logo-banner.svg" },
+  { kind: "static", file: "31-accrediation-logo-1.svg" },
+  { kind: "static", file: "32-watermark.svg" },
+  { kind: "static", file: "33-license-label.svg" },
+  { kind: "lcn" },
+  { kind: "qr" },
+  { kind: "static", file: "36-qr-logo.svg" },
+  { kind: "warning", file: "37-warning.svg" },
+];
+
+/* Placeholder slot geometry, measured from the design's sample layers. */
+const PHOTO_RECT = { x: 261, y: 1498, w: 1200, h: 1200 };
+const PHOTO_WM_RECT = { x: 5098, y: 3483, w: 1675, h: 1675 };
+const QR_RECT = { x: 790, y: 3424, w: 786, h: 786 };
+
+function Overlay({ children }: { children: React.ReactNode }) {
   return (
     <svg
       viewBox="0 0 6900 5209"
@@ -76,6 +140,14 @@ function CertName({ name }: { name: string }) {
       role="presentation"
       aria-hidden="true"
     >
+      {children}
+    </svg>
+  );
+}
+
+function CertName({ name }: { name: string }) {
+  return (
+    <Overlay>
       <text
         fill="#1a1a1a"
         fontFamily="'Copperplate Gothic Bold', Georgia, serif"
@@ -87,7 +159,7 @@ function CertName({ name }: { name: string }) {
           {name.toUpperCase()}
         </tspan>
       </text>
-    </svg>
+    </Overlay>
   );
 }
 
@@ -104,13 +176,7 @@ function CertBody({ issued }: { issued: string | null }) {
   }
   const words = yearInWords(year);
   return (
-    <svg
-      viewBox="0 0 6900 5209"
-      className={LAYER}
-      fill="none"
-      role="presentation"
-      aria-hidden="true"
-    >
+    <Overlay>
       <text
         fill="#1a1a1a"
         fontFamily="'Lucida Calligraphy', 'Brush Script MT', cursive"
@@ -130,93 +196,52 @@ function CertBody({ issued }: { issued: string | null }) {
           2A Wellgoco Bldg., Instruccion Street, España Avenue, Sampaloc Manila
         </tspan>
       </text>
-    </svg>
+    </Overlay>
   );
 }
 
 function CertNumber({ lcn }: { lcn: string }) {
   return (
-    <svg
-      viewBox="0 0 6900 5209"
-      className={LAYER}
-      fill="none"
-      role="presentation"
-      aria-hidden="true"
-    >
+    <Overlay>
       <text
         fill="#1a1a1a"
         fontFamily="Arial, sans-serif"
-        fontSize="116"
+        fontSize="200"
         fontWeight="bold"
       >
-        <tspan x="1413" y="4413">
+        <tspan x="611" y="4517">
           {lcn}
         </tspan>
       </text>
-    </svg>
+    </Overlay>
   );
 }
 
 function CertPhoto({
   photoUrl,
+  rect,
+  opacity,
   variant,
 }: {
   photoUrl: string;
-  variant: "a" | "b";
+  rect: { x: number; y: number; w: number; h: number };
+  opacity: number;
+  variant: string;
 }) {
-  const id = `cert-photo-${variant}`;
-  const rect =
-    variant === "a"
-      ? {
-          x: 268,
-          y: 1487,
-          w: 1202,
-          h: 1250,
-          m: "matrix(0.00406224 0 0 0.00390625 -0.0199667 0)",
-          o: 1,
-        }
-      : {
-          x: 5057,
-          y: 3384,
-          w: 1650,
-          h: 1716,
-          m: "matrix(0.0040625 0 0 0.00390625 -0.02 0)",
-          o: 0.3,
-        };
+  const id = `certv2-photo-${variant}`;
   return (
-    <svg
-      viewBox="0 0 6900 5209"
-      className={LAYER}
-      fill="none"
-      role="presentation"
-      aria-hidden="true"
-    >
-      <rect
+    <Overlay>
+      <image
+        id={id}
         x={rect.x}
         y={rect.y}
         width={rect.w}
         height={rect.h}
-        fill={`url(#${id})`}
-        fillOpacity={rect.o}
+        preserveAspectRatio="xMidYMid meet"
+        opacity={opacity}
+        href={photoUrl}
       />
-      <defs>
-        <pattern
-          id={id}
-          patternContentUnits="objectBoundingBox"
-          width="1"
-          height="1"
-        >
-          <use href={`#${id}-img`} transform={rect.m} />
-        </pattern>
-        <image
-          id={`${id}-img`}
-          width="256"
-          height="256"
-          preserveAspectRatio="none"
-          href={photoUrl}
-        />
-      </defs>
-    </svg>
+    </Overlay>
   );
 }
 
@@ -225,31 +250,114 @@ export function Certificate({
   lcn,
   issued,
   photoUrl,
+  qrDataUrl = null,
+  signatures,
+  warningOverlay = false,
+  frameless = false,
 }: {
   name: string;
   lcn: string;
   issued: string | null;
   photoUrl: string | null;
+  /** Verification QR (generated, #0d1671, ECC-H) embedded at the design's QR slot. */
+  qrDataUrl?: string | null;
+  /**
+   * Admin-only, per-slot signature visibility ({ one, two, three }). Omitted
+   * (the public surface) means NO signature layer ever renders.
+   */
+  signatures?: SignatureVisibility;
+  /** Public-only warning overlay (topmost layer). Admin previews/exports omit it. */
+  warningOverlay?: boolean;
+  /** Print mode: no screen chrome (radius/border/shadow) — used for PNG export. */
+  frameless?: boolean;
 }) {
   return (
-    <div className="mx-auto w-full max-w-3xl overflow-hidden rounded-lg border border-outline-variant/60 bg-white shadow-[var(--shadow-clinical)] select-none">
+    <div
+      className={
+        frameless
+          ? "mx-auto w-full max-w-3xl select-none bg-white"
+          : "mx-auto w-full max-w-3xl select-none overflow-hidden rounded-lg border border-outline-variant/60 bg-white shadow-[var(--shadow-clinical)]"
+      }
+    >
       <div className="relative w-full" style={{ aspectRatio: "6900 / 5209" }}>
-        {LAYERS.map((i) => (
-          // biome-ignore lint/performance/noImgElement: fixed local SVG artwork layers, not content images
-          <img
-            key={i}
-            src={`/assets/svg/Certificate/${i}.svg`}
-            alt=""
-            className={LAYER}
-          />
-        ))}
-        <CertName name={name} />
-        <CertBody issued={issued} />
-        <CertNumber lcn={lcn} />
-        {photoUrl && <CertPhoto photoUrl={photoUrl} variant="a" />}
-        {photoUrl && <CertPhoto photoUrl={photoUrl} variant="b" />}
-        {/* biome-ignore lint/performance/noImgElement: fixed local SVG frame layer */}
-        <img src="/assets/svg/Certificate/23.svg" alt="" className={LAYER} />
+        {LAYERS.map((layer, i) => {
+          const key = `layer-${i}`;
+          switch (layer.kind) {
+            case "static":
+              return (
+                // biome-ignore lint/performance/noImgElement: fixed local SVG artwork layers, not content images
+                <img
+                  key={key}
+                  src={`${ART}/${layer.file}`}
+                  alt=""
+                  className={LAYER}
+                />
+              );
+            case "warning":
+              if (!warningOverlay) return null;
+              return (
+                // biome-ignore lint/performance/noImgElement: fixed local SVG artwork layers, not content images
+                <img
+                  key={key}
+                  src={`${ART}/${layer.file}`}
+                  alt=""
+                  className={LAYER}
+                />
+              );
+            case "signature":
+              if (!signatures?.[layer.slot]) return null;
+              return (
+                // biome-ignore lint/performance/noImgElement: fixed local SVG artwork layers, not content images
+                <img
+                  key={key}
+                  src={`${ART}/${layer.file}`}
+                  alt=""
+                  className={LAYER}
+                />
+              );
+            case "photo":
+              return photoUrl ? (
+                <CertPhoto
+                  key={key}
+                  photoUrl={photoUrl}
+                  rect={PHOTO_RECT}
+                  opacity={1}
+                  variant="main"
+                />
+              ) : null;
+            case "photo-watermark":
+              return photoUrl ? (
+                <CertPhoto
+                  key={key}
+                  photoUrl={photoUrl}
+                  rect={PHOTO_WM_RECT}
+                  opacity={0.3}
+                  variant="wm"
+                />
+              ) : null;
+            case "name":
+              return <CertName key={key} name={name} />;
+            case "date":
+              return <CertBody key={key} issued={issued} />;
+            case "lcn":
+              return <CertNumber key={key} lcn={lcn} />;
+            case "qr":
+              return qrDataUrl ? (
+                <Overlay key={key}>
+                  <image
+                    x={QR_RECT.x}
+                    y={QR_RECT.y}
+                    width={QR_RECT.w}
+                    height={QR_RECT.h}
+                    preserveAspectRatio="none"
+                    href={qrDataUrl}
+                  />
+                </Overlay>
+              ) : null;
+            default:
+              return null;
+          }
+        })}
       </div>
     </div>
   );

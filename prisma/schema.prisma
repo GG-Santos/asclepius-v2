@@ -24,12 +24,15 @@ model User {
   image         String?
   role          String   @default("writer") // "admin" | "writer" | "graduate"
   graduateLcn   String? // for graduate accounts: the LCN they own
+  locked        Boolean   @default(false) // admin-locked: blocks sign-in / access
+  lockedAt      DateTime?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  sessions Session[]
-  accounts Account[]
-  posts    BlogPost[]
+  sessions      Session[]
+  accounts      Account[]
+  posts         BlogPost[]
+  taughtBatches Batch[]    @relation("BatchProfessor")
 
   @@map("user")
 }
@@ -100,17 +103,26 @@ enum StudentStatus {
 }
 
 model Batch {
-  id          String      @id @default(auto()) @map("_id") @db.ObjectId
-  code        String      @unique // "BATCH-09"
-  batchNumber String? // non-sequential integer as string, e.g. "19", "23"
-  label       String?
-  year        Int?
-  logo        MediaAsset? @relation(name: "BatchLogo", fields: [logoId], references: [id])
-  logoId      String?     @db.ObjectId
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-  graduates   Graduate[]
-  students    Student[]
+  id                  String      @id @default(auto()) @map("_id") @db.ObjectId
+  code                String      @unique // "BATCH-09"
+  batchNumber         String? // non-sequential integer as string, e.g. "19", "23"
+  label               String?
+  professor           String? // instructor display name (label; may be a non-account name)
+  professorId         String?     @db.ObjectId // linked professor account (dashboard access)
+  professorUser       User?       @relation("BatchProfessor", fields: [professorId], references: [id])
+  description         String? // public cohort blurb (shown on the public /cohorts page)
+  year                Int?
+  graduated           Boolean     @default(false) // batch marked graduated (manual)
+  graduationRequested Boolean     @default(false) // professor asked an admin to review/graduate
+  graduatedAt         DateTime? // graduation date — drives LCN dates + display
+  logo                MediaAsset? @relation(name: "BatchLogo", fields: [logoId], references: [id])
+  logoId              String?     @db.ObjectId
+  heroImageUrl        String? // public cohort hero (batch group photo)
+  galleryUrls         String[]    @default([]) // public cohort gallery, ordered
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+  graduates           Graduate[]
+  students            Student[]
 
   @@map("batch")
 }
@@ -234,8 +246,9 @@ model BlogPost {
   slug        String     @unique
   title       String
   excerpt     String?
-  content     String // markdown
+  content     String // rich-text HTML (TipTap)
   coverImage  String? // Blob URL
+  tags        String[] // freeform tags (creatable combobox)
   status      PostStatus @default(DRAFT)
   authorId    String     @db.ObjectId
   author      User       @relation(fields: [authorId], references: [id])
@@ -245,6 +258,49 @@ model BlogPost {
 
   @@index([status])
   @@map("blog_post")
+}
+
+// General-purpose admin-uploaded media (images, videos). Student/graduate
+// photos are stored separately in MediaAsset — this model is for content assets
+// used in the showcase, blog, or site (not tied to any person record).
+model ContentAsset {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  description String?
+  assetType   String // "image" | "video"
+  url         String // Vercel Blob public URL
+  mimeType    String?
+  size        Int? // bytes
+  public      Boolean  @default(false)
+  uploadedBy  String?  @db.ObjectId
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([assetType])
+  @@index([public])
+  @@map("content_asset")
+}
+
+// Interactive 3D model: uploaded FBX/OBJ is converted in-browser to an
+// optimized GLB (meshopt) and served by the R3F viewer.
+model Model3D {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  slug        String   @unique
+  description String?
+  fileUrl     String // optimized GLB (Vercel Blob)
+  posterUrl   String? // thumbnail
+  size        Int? // GLB byte size
+  public      Boolean  @default(false)
+  display     Json? // { autoRotate, environment, exposure, background, initialCamera }
+  hotspots    Json? // [{ position:[x,y,z], label, body }]
+  explode     Json? // { enabled, factor }
+  uploadedBy  String?  @db.ObjectId
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([public])
+  @@map("model_3d")
 }
 
 // Lightweight record of public verification lookups, for dashboard analytics.
@@ -273,6 +329,8 @@ model Inquiry {
   program   String? // BLS | EMR | EMT | SPECIALIZED | GENERAL
   message   String?
   status    InquiryStatus @default(NEW)
+  notes     String? // internal admin notes
+  repliedAt DateTime? // set when an admin sends a reply
   createdAt DateTime      @default(now())
 
   @@index([status])
@@ -288,7 +346,9 @@ model Testimonial {
   quote     String
   rating    Int      @default(5)
   approved  Boolean  @default(false)
+  pinned    Boolean  @default(false) // admin-pinned: shown first on the homepage
   order     Int      @default(0)
+  submittedByLcn String? // LCN of the graduate who submitted it (portal)
   createdAt DateTime @default(now())
 
   @@index([approved])
@@ -312,79 +372,9 @@ model TeamMember {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // LMS — continuing education for active graduates
+//
+// The LMS lives in a SEPARATE MongoDB cluster (COURSES_URL). Its models are
+// defined in prisma/courses/schema.prisma and accessed via the `coursesPrisma`
+// client (src/lib/courses-db.ts). Enrollments there reference Graduate.lcn as a
+// soft string — there is no cross-database relation to maintain here.
 // ─────────────────────────────────────────────────────────────────────────────
-
-enum CourseStatus {
-  DRAFT
-  PUBLISHED
-}
-
-model Course {
-  id          String       @id @default(auto()) @map("_id") @db.ObjectId
-  slug        String       @unique
-  title       String
-  summary     String?
-  coverImage  String?
-  status      CourseStatus @default(DRAFT)
-  createdBy   String?      @db.ObjectId
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  modules     Module[]
-  enrollments Enrollment[]
-
-  @@index([status])
-  @@map("course")
-}
-
-model Module {
-  id       String   @id @default(auto()) @map("_id") @db.ObjectId
-  courseId String   @db.ObjectId
-  course   Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  title    String
-  order    Int      @default(0)
-  lessons  Lesson[]
-
-  @@index([courseId])
-  @@map("course_module")
-}
-
-model Lesson {
-  id           String           @id @default(auto()) @map("_id") @db.ObjectId
-  moduleId     String           @db.ObjectId
-  module       Module           @relation(fields: [moduleId], references: [id], onDelete: Cascade)
-  title        String
-  content      String // markdown
-  order        Int              @default(0)
-  durationMins Int?
-  progress     LessonProgress[]
-
-  @@index([moduleId])
-  @@map("lesson")
-}
-
-model Enrollment {
-  id            String           @id @default(auto()) @map("_id") @db.ObjectId
-  graduateLcn   String // the graduate who enrolled
-  courseId      String           @db.ObjectId
-  course        Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  enrolledAt    DateTime         @default(now())
-  completedAt   DateTime?
-  certificateNo String? // CE certificate number, set on completion
-  progress      LessonProgress[]
-
-  @@unique([graduateLcn, courseId])
-  @@index([graduateLcn])
-  @@map("enrollment")
-}
-
-model LessonProgress {
-  id           String     @id @default(auto()) @map("_id") @db.ObjectId
-  enrollmentId String     @db.ObjectId
-  enrollment   Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
-  lessonId     String     @db.ObjectId
-  lesson       Lesson     @relation(fields: [lessonId], references: [id], onDelete: Cascade)
-  completedAt  DateTime   @default(now())
-
-  @@unique([enrollmentId, lessonId])
-  @@map("lesson_progress")
-}

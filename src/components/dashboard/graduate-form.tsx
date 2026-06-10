@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, Trash2, UserRound } from "lucide-react";
+import { Trash2, UserRound } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
   useActionState,
@@ -14,12 +14,14 @@ import { toast } from "sonner";
 import type { ActionState } from "@/app/dashboard/graduates/actions";
 import { deleteGraduate } from "@/app/dashboard/graduates/actions";
 import { BatchSelect } from "@/components/dashboard/batch-select";
+import { ConfirmDialog } from "@/components/dashboard/confirm-button";
 import { GradeCells } from "@/components/dashboard/grade-cells";
 import {
   type SaveState,
   StudentPhotoPanel,
 } from "@/components/dashboard/student-photo-panel";
 import { Button } from "@/components/ui/button";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
 
 export type GraduateDefaults = {
@@ -53,12 +55,12 @@ const SCORE_ROWS: {
 }[] = [
   { weight: "10%", label: "Final Written Examination", field: "scoreFWE" },
   {
-    weight: "20%",
+    weight: "15%",
     label: "Situational Judgement Examination",
     field: "scoreSJE",
   },
   { weight: "10%", label: "Equipment Proficiency", field: "scoreEP" },
-  { weight: "10%", label: "Patient Assessment Skills", field: "scorePAS" },
+  { weight: "15%", label: "Patient Assessment Skills", field: "scorePAS" },
   { weight: "25%", label: "Critical Case: Trauma", field: "scoreCCST" },
   { weight: "25%", label: "Critical Case: Medical", field: "scoreCCSM" },
 ];
@@ -107,20 +109,29 @@ export function GraduateForm({
   const handled = useRef(false);
   const fe = state.fieldErrors ?? {};
   const [delPending, startDelete] = useTransition();
+  // Confirm-before-apply: submits (button or Enter key) first pass through
+  // the save dialog; `confirmedRef` lets the re-dispatched submit proceed.
+  const formRef = useRef<HTMLFormElement>(null);
+  const confirmedRef = useRef(false);
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const isEdit = Boolean(deleteId);
 
   const [scores, setScores] = useState<Record<string, string>>(() =>
     Object.fromEntries(
       SCORE_ROWS.map((r) => [r.field, (defaults[r.field] as string) ?? ""]),
     ),
   );
-  const total = useMemo(
-    () =>
-      SCORE_ROWS.reduce(
-        (sum, r) => sum + (Number.parseFloat(scores[r.field]) || 0),
-        0,
-      ),
-    [scores],
-  );
+  const total = useMemo(() => {
+    // Scores are entered as already-weighted points (FWE ≤10 … CCSM ≤25); the
+    // Total Evaluation is their sum (≤100).
+    let sum = 0;
+    for (const r of SCORE_ROWS) {
+      const v = Number.parseFloat(scores[r.field]);
+      if (!Number.isNaN(v)) sum += v;
+    }
+    return sum;
+  }, [scores]);
 
   const saveState: SaveState = pending ? "saving" : state.ok ? "done" : "idle";
 
@@ -134,10 +145,23 @@ export function GraduateForm({
     if (state.error) toast.error(state.error);
   }, [state, router, successMessage, redirectTo]);
 
-  function onDelete() {
-    if (!deleteId) return;
-    if (!confirm(`Delete record ${defaults.lcn}? This cannot be undone.`))
+  function onSubmitIntercept(e: React.FormEvent<HTMLFormElement>) {
+    if (!confirmedRef.current) {
+      e.preventDefault();
+      setSaveOpen(true);
       return;
+    }
+    confirmedRef.current = false;
+  }
+
+  function confirmSave() {
+    setSaveOpen(false);
+    confirmedRef.current = true;
+    formRef.current?.requestSubmit();
+  }
+
+  function confirmDelete() {
+    if (!deleteId) return;
     const fd = new FormData();
     fd.set("id", deleteId);
     startDelete(async () => {
@@ -146,10 +170,16 @@ export function GraduateForm({
       router.push("/dashboard/graduates");
       router.refresh();
     });
+    setDeleteOpen(false);
   }
 
   return (
-    <form action={formAction} className="mx-auto w-full max-w-6xl">
+    <form
+      ref={formRef}
+      action={formAction}
+      onSubmit={onSubmitIntercept}
+      className="mx-auto w-full max-w-6xl"
+    >
       <div className="overflow-hidden rounded-xl border border-outline-variant/60 bg-card shadow-[var(--shadow-clinical)]">
         {/* Header bar */}
         <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
@@ -167,7 +197,7 @@ export function GraduateForm({
                 size="sm"
                 variant="outline"
                 disabled={delPending || pending}
-                onClick={onDelete}
+                onClick={() => setDeleteOpen(true)}
                 className="border-secondary/30 bg-secondary/10 text-secondary hover:bg-secondary/20"
               >
                 <Trash2 aria-hidden /> Delete
@@ -175,6 +205,35 @@ export function GraduateForm({
             )}
           </div>
         </div>
+
+        <ConfirmDialog
+          open={saveOpen}
+          onOpenChange={setSaveOpen}
+          onConfirm={confirmSave}
+          title={
+            isEdit
+              ? `Apply changes to ${defaults.lcn ?? "this record"}?`
+              : "Create this record?"
+          }
+          description={
+            isEdit
+              ? "Saves these edits to the official record — the public credential and printable artifacts update immediately."
+              : "Adds this record to the official registry."
+          }
+          confirmLabel={submitLabel}
+          tone="primary"
+          pending={pending}
+        />
+        <ConfirmDialog
+          open={deleteOpen}
+          onOpenChange={setDeleteOpen}
+          onConfirm={confirmDelete}
+          title={`Delete record ${defaults.lcn ?? ""}?`}
+          description="Permanently removes this record and its public credential. This cannot be undone."
+          confirmLabel="Delete"
+          tone="danger"
+          pending={delPending}
+        />
 
         <div className="flex flex-col border-outline-variant/60 border-t md:flex-row">
           {/* Left: photo + live integration cards */}
@@ -256,40 +315,28 @@ export function GraduateForm({
               </div>
 
               <Labeled label="Date of Issuance">
-                <div className="relative">
-                  <Input
-                    name="issuedRaw"
-                    defaultValue={defaults.issuedRaw}
-                    placeholder="August 3, 2021"
-                    className="pr-9"
-                  />
-                  <CalendarDays className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-on-surface-variant" />
-                </div>
+                <DatePicker
+                  name="issuedRaw"
+                  defaultValue={defaults.issuedRaw}
+                  placeholder="Aug 03, 2021 · today · last monday"
+                />
               </Labeled>
               <Labeled label="Date of Expiration">
-                <div className="relative">
-                  <Input
-                    name="expirationRaw"
-                    defaultValue={defaults.expirationRaw}
-                    placeholder="August 3, 2026"
-                    className="pr-9"
-                  />
-                  <CalendarDays className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-on-surface-variant" />
-                </div>
+                <DatePicker
+                  name="expirationRaw"
+                  defaultValue={defaults.expirationRaw}
+                  placeholder="Aug 03, 2026 · in 1 year"
+                />
               </Labeled>
               <Labeled
                 label="Latest Re-Certification"
                 className="sm:col-span-2"
               >
-                <div className="relative">
-                  <Input
-                    name="registrationRaw"
-                    defaultValue={defaults.registrationRaw}
-                    placeholder="August 3, 2021"
-                    className="pr-9"
-                  />
-                  <CalendarDays className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-on-surface-variant" />
-                </div>
+                <DatePicker
+                  name="registrationRaw"
+                  defaultValue={defaults.registrationRaw}
+                  placeholder="Aug 03, 2021 · 2 weeks ago"
+                />
               </Labeled>
 
               {/* Status is set by the section (students vs graduates), not edited

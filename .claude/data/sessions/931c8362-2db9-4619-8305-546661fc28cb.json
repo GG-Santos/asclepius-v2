@@ -1,0 +1,20 @@
+{
+  "session_id": "931c8362-2db9-4619-8305-546661fc28cb",
+  "started_at": "2026-06-10T03:45:48.495Z",
+  "prompts": [
+    {
+      "ts": "2026-06-10T03:45:48.496Z",
+      "text": "resume"
+    },
+    {
+      "ts": "2026-06-10T10:00:39.453Z",
+      "text": "in admin there should be edit the graduate/student uploaded image. also the certificate and id should not be stretch or distorted but cropped from the top to bottom"
+    },
+    {
+      "ts": "2026-06-10T10:35:45.683Z",
+      "text": "also in the edit image is not saving. and the certificate and id the image should be fit to height not stretch or cropped."
+    }
+  ],
+  "wave_snapshots": [],
+  "last_updated": "2026-06-10T10:35:45.684Z"
+}

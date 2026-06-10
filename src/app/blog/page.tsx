@@ -3,6 +3,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { PublicHeader } from "@/components/public-header";
 import { prisma } from "@/lib/prisma";
+import { readTime } from "@/lib/read-time";
+import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
   title: "Blog",
@@ -11,12 +13,47 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
-export default async function BlogIndexPage() {
+function TagChip({
+  href,
+  active,
+  children,
+}: {
+  href: string;
+  active: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <Link
+      href={href}
+      className={cn(
+        "rounded-full px-3 py-1 text-xs font-medium transition-colors",
+        active
+          ? "bg-primary text-on-primary dark:bg-accent dark:text-white"
+          : "border border-outline-variant bg-card text-on-surface-variant hover:border-accent hover:text-accent",
+      )}
+    >
+      {children}
+    </Link>
+  );
+}
+
+export default async function BlogIndexPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tag?: string }>;
+}) {
+  const { tag } = await searchParams;
   const posts = await prisma.blogPost.findMany({
     where: { status: "PUBLISHED" },
     include: { author: { select: { name: true } } },
     orderBy: { publishedAt: "desc" },
   });
+
+  const allTags = [...new Set(posts.flatMap((p) => p.tags))].sort();
+  const activeTag = tag && allTags.includes(tag) ? tag : null;
+  const visible = activeTag
+    ? posts.filter((p) => p.tags.includes(activeTag))
+    : posts;
 
   return (
     <div className="flex min-h-svh flex-col">
@@ -28,13 +65,30 @@ export default async function BlogIndexPage() {
           News and updates from the training center.
         </p>
 
-        {posts.length === 0 ? (
+        {allTags.length > 0 && (
+          <div className="mt-6 flex flex-wrap gap-2">
+            <TagChip href="/blog" active={!activeTag}>
+              All
+            </TagChip>
+            {allTags.map((t) => (
+              <TagChip
+                key={t}
+                href={`/blog?tag=${encodeURIComponent(t)}`}
+                active={activeTag === t}
+              >
+                {t}
+              </TagChip>
+            ))}
+          </div>
+        )}
+
+        {visible.length === 0 ? (
           <p className="mt-10 text-sm text-on-surface-variant">
-            No posts published yet.
+            No posts {activeTag ? `tagged “${activeTag}”` : "published"} yet.
           </p>
         ) : (
           <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {posts.map((p) => (
+            {visible.map((p) => (
               <Link
                 key={p.id}
                 href={`/blog/${p.slug}`}
@@ -48,11 +102,23 @@ export default async function BlogIndexPage() {
                     }
                     alt=""
                     fill
-                    className="object-cover"
+                    className="object-cover transition-transform duration-300 group-hover:scale-105"
                     sizes="(max-width:768px) 100vw, 360px"
                   />
                 </div>
                 <div className="flex flex-1 flex-col p-5">
+                  {p.tags.length > 0 && (
+                    <div className="mb-2 flex flex-wrap gap-1.5">
+                      {p.tags.slice(0, 3).map((t) => (
+                        <span
+                          key={t}
+                          className="rounded-full bg-accent/10 px-2 py-0.5 text-[11px] font-medium text-accent"
+                        >
+                          {t}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                   <h2 className="font-semibold text-on-surface group-hover:text-accent">
                     {p.title}
                   </h2>
@@ -65,7 +131,8 @@ export default async function BlogIndexPage() {
                     {p.author.name}
                     {p.publishedAt
                       ? ` · ${p.publishedAt.toLocaleDateString()}`
-                      : ""}
+                      : ""}{" "}
+                    · {readTime(p.content)} min read
                   </p>
                 </div>
               </Link>

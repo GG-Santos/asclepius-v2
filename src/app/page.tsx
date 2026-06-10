@@ -29,18 +29,28 @@ export const dynamic = "force-dynamic";
 const APPLY_HREF = "/enroll";
 
 async function getLandingData() {
+  const now = new Date();
+  const d30 = new Date(now.getTime() - 30 * 86_400_000);
+  const d60 = new Date(now.getTime() - 60 * 86_400_000);
   const [
-    licensed,
-    batches,
-    lookups,
+    activeGraduates,
+    batchList,
+    monthlyLookups,
+    prevMonthlyLookups,
     posts,
     testimonials,
     team,
     batchesWithLogos,
   ] = await Promise.all([
-    prisma.graduate.count({ where: { status: "GRADUATE" } }),
-    prisma.batch.count(),
-    prisma.lookupEvent.count(),
+    prisma.graduate.count({
+      where: {
+        status: "GRADUATE",
+        OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+      },
+    }),
+    prisma.batch.findMany({ select: { batchNumber: true, code: true } }),
+    prisma.lookupEvent.count({ where: { createdAt: { gte: d30 } } }),
+    prisma.lookupEvent.count({ where: { createdAt: { gte: d60, lt: d30 } } }),
     prisma.blogPost.findMany({
       where: { status: "PUBLISHED" },
       orderBy: { publishedAt: "desc" },
@@ -55,7 +65,7 @@ async function getLandingData() {
     }),
     prisma.testimonial.findMany({
       where: { approved: true },
-      orderBy: [{ order: "asc" }, { createdAt: "desc" }],
+      orderBy: [{ pinned: "desc" }, { order: "asc" }, { createdAt: "desc" }],
       take: 6,
     }),
     prisma.teamMember.findMany({
@@ -70,10 +80,24 @@ async function getLandingData() {
       include: { logo: true },
     }),
   ]);
+  const latestBatchNo = batchList.reduce((mx, b) => {
+    const m = (b.batchNumber ?? b.code).match(/(\d+)/);
+    const n = m ? Number(m[1]) : 0;
+    return n > mx ? n : mx;
+  }, 0);
+  const lookupBoost =
+    prevMonthlyLookups > 0
+      ? Math.round(
+          ((monthlyLookups - prevMonthlyLookups) / prevMonthlyLookups) * 100,
+        )
+      : monthlyLookups > 0
+        ? 100
+        : null;
   return {
-    licensed,
-    batches,
-    lookups,
+    activeGraduates,
+    latestBatchNo,
+    monthlyLookups,
+    lookupBoost,
     posts,
     testimonials,
     team,
@@ -83,9 +107,10 @@ async function getLandingData() {
 
 export default async function Home() {
   const {
-    licensed,
-    batches,
-    lookups,
+    activeGraduates,
+    latestBatchNo,
+    monthlyLookups,
+    lookupBoost,
     posts,
     testimonials,
     team,
@@ -98,17 +123,29 @@ export default async function Home() {
 
       <main className="flex-1">
         {/* ── HERO ─────────────────────────────────────────────────────── */}
-        <section className="bg-surface">
-          <div className="mx-auto grid w-full max-w-[1200px] items-center gap-12 px-4 py-16 md:grid-cols-2 md:px-8 md:py-24">
+        <section className="relative overflow-hidden bg-surface">
+          {/* Dark mode: ambient top-center glow — implies a light source above
+              the headline without adding decorative noise. ~4% luminance only. */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 -z-0"
+            style={{
+              background:
+                "radial-gradient(ellipse 80% 55% at 50% -10%, var(--accent-tint-strong) 0%, transparent 65%)",
+            }}
+          />
+          <div className="relative z-10 mx-auto grid w-full max-w-[1200px] items-center gap-12 px-4 py-16 md:grid-cols-2 md:px-8 md:py-24">
             <FadeIn className="flex flex-col items-start">
-              <span className="inline-flex items-center gap-2 rounded-full border border-outline-variant bg-card px-3 py-1 text-xs font-semibold uppercase tracking-widest text-accent">
+              <span className="inline-flex items-center gap-2 rounded-full border border-outline-variant bg-card px-3 py-1 text-xs font-semibold uppercase tracking-widest text-accent dark:border-accent/25 dark:bg-accent/[0.06] dark:text-accent-bright dark:shadow-[var(--glow-accent-soft)]">
                 <ShieldCheck className="size-3.5" aria-hidden />
                 Official EMT Credential Registry
               </span>
 
               <h1 className="mt-5 text-4xl font-extrabold leading-[1.07] tracking-tight text-on-surface md:text-6xl">
                 Verify an EMT&apos;s license{" "}
-                <span className="text-primary">in seconds.</span>
+                <span className="text-primary dark:text-accent-bright">
+                  in seconds.
+                </span>
               </h1>
 
               <p className="mt-4 max-w-md text-lg leading-relaxed text-on-surface-variant">
@@ -127,7 +164,7 @@ export default async function Home() {
                 <p className="mt-3 text-xs text-on-surface-variant">
                   Real-time check against{" "}
                   <span className="font-semibold text-on-surface">
-                    {licensed.toLocaleString()}
+                    {activeGraduates.toLocaleString()}
                   </span>{" "}
                   active credentials · No login required
                 </p>
@@ -137,7 +174,7 @@ export default async function Home() {
                 Looking to train as an EMT?{" "}
                 <Link
                   href="#programs"
-                  className="font-semibold text-accent transition-colors hover:text-primary"
+                  className="font-semibold text-accent transition-colors hover:text-primary dark:hover:text-accent-bright"
                 >
                   Explore programs →
                 </Link>
@@ -151,26 +188,31 @@ export default async function Home() {
         </section>
 
         {/* ── PROOF BAR (real data) ────────────────────────────────────── */}
-        <section className="border-y border-outline-variant bg-surface-container">
+        <section className="border-y border-outline-variant bg-surface-container dark:bg-surface-low dark:border-white/[0.06]">
           <div className="mx-auto grid w-full max-w-[1200px] grid-cols-2 md:grid-cols-4 md:divide-x md:divide-outline-variant">
             <StatCell
-              value={licensed.toLocaleString()}
-              label="Licensed technicians"
+              value={activeGraduates.toLocaleString()}
+              label="Active graduates"
             />
             <StatCell
-              value={batches.toLocaleString()}
-              label="Cohorts trained"
+              value={latestBatchNo.toLocaleString()}
+              label="EMT Batches Trained"
             />
             <StatCell
-              value={lookups.toLocaleString()}
-              label="Credential checks run"
+              value={monthlyLookups.toLocaleString()}
+              label="Monthly verifications"
+              boost={
+                lookupBoost != null && lookupBoost > 0
+                  ? `+${lookupBoost}%`
+                  : undefined
+              }
             />
-            <StatCell value="ASHI" label="Accredited programs" />
+            <StatCell value="ASHI & ECSI" label="Accredited programs" />
           </div>
         </section>
 
         {/* ── WHAT WSL EMS IS (trust explainer) ────────────────────────── */}
-        <section className="bg-surface">
+        <section className="bg-surface dark:border-t dark:border-white/[0.06]">
           <div className="mx-auto grid w-full max-w-[1200px] items-center gap-12 px-4 py-20 md:grid-cols-2 md:px-8">
             <FadeIn className="order-2 md:order-1">
               <p className="text-xs font-semibold uppercase tracking-widest text-accent">
@@ -222,7 +264,7 @@ export default async function Home() {
         </section>
 
         {/* ── HOW IT WORKS + STATUS HONESTY ────────────────────────────── */}
-        <section className="bg-surface-container">
+        <section className="bg-surface-container dark:bg-surface dark:border-t dark:border-white/[0.06]">
           <div className="mx-auto w-full max-w-[1200px] px-4 py-20 md:px-8">
             <FadeIn>
               <div className="mx-auto mb-12 max-w-lg text-center">
@@ -298,7 +340,10 @@ export default async function Home() {
         </section>
 
         {/* ── PROGRAMS (merged) ────────────────────────────────────────── */}
-        <section id="programs" className="scroll-mt-16 bg-surface">
+        <section
+          id="programs"
+          className="scroll-mt-16 bg-surface dark:border-t dark:border-white/[0.06]"
+        >
           <div className="mx-auto w-full max-w-[1200px] px-4 py-20 md:px-8">
             <FadeIn>
               <div className="mx-auto mb-12 max-w-xl text-center">
@@ -342,9 +387,10 @@ export default async function Home() {
                   icon={Activity}
                   tag="EMT"
                   title="Basic Emergency Medical Technician"
-                  hours="130+ hours"
+                  hours="160 hours"
                   credential="License-eligible"
                   body="Full prehospital emergency care with licensure eligibility — the foundation of professional EMS practice."
+                  featured
                 />
               </FadeIn>
               <FadeIn delay={240}>
@@ -363,7 +409,7 @@ export default async function Home() {
               Cohort dates are managed by WSL EMS admissions.{" "}
               <Link
                 href={APPLY_HREF}
-                className="font-semibold text-accent transition-colors hover:text-primary"
+                className="font-semibold text-accent transition-colors hover:text-primary dark:hover:text-accent-bright"
               >
                 Request the next intake schedule →
               </Link>
@@ -371,20 +417,20 @@ export default async function Home() {
           </div>
         </section>
 
-        {/* ── INSTRUCTORS (gated on published team) ────────────────────── */}
-        {team.length > 0 && (
-          <section className="border-t border-outline-variant bg-surface-container">
-            <div className="mx-auto w-full max-w-[1200px] px-4 py-20 md:px-8">
-              <FadeIn>
-                <div className="mx-auto mb-12 max-w-xl text-center">
-                  <p className="text-xs font-semibold uppercase tracking-widest text-accent">
-                    Who teaches you
-                  </p>
-                  <h2 className="mt-2 text-3xl font-bold tracking-tight text-on-surface md:text-4xl">
-                    Instructors who have worked the field.
-                  </h2>
-                </div>
-              </FadeIn>
+        {/* ── INSTRUCTORS (shell always renders — R8) ──────────────────── */}
+        <section className="border-t border-outline-variant bg-surface-container dark:border-white/[0.06] dark:bg-surface">
+          <div className="mx-auto w-full max-w-[1200px] px-4 py-20 md:px-8">
+            <FadeIn>
+              <div className="mx-auto mb-12 max-w-xl text-center">
+                <p className="text-xs font-semibold uppercase tracking-widest text-accent">
+                  Who teaches you
+                </p>
+                <h2 className="mt-2 text-3xl font-bold tracking-tight text-on-surface md:text-4xl">
+                  Instructors who have worked the field.
+                </h2>
+              </div>
+            </FadeIn>
+            {team.length > 0 ? (
               <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
                 {team.map((m, i) => (
                   <FadeIn key={m.id} delay={i * 80}>
@@ -397,24 +443,26 @@ export default async function Home() {
                   </FadeIn>
                 ))}
               </div>
-            </div>
-          </section>
-        )}
+            ) : (
+              <SectionEmpty message="Instructor profiles are being prepared — check back soon." />
+            )}
+          </div>
+        </section>
 
-        {/* ── GRADUATE VOICES (gated on approved testimonials) ─────────── */}
-        {testimonials.length > 0 && (
-          <section className="bg-surface">
-            <div className="mx-auto w-full max-w-[1200px] px-4 py-20 md:px-8">
-              <FadeIn>
-                <div className="mx-auto mb-12 max-w-xl text-center">
-                  <p className="text-xs font-semibold uppercase tracking-widest text-accent">
-                    Graduate voices
-                  </p>
-                  <h2 className="mt-2 text-3xl font-bold tracking-tight text-on-surface md:text-4xl">
-                    What our graduates say.
-                  </h2>
-                </div>
-              </FadeIn>
+        {/* ── GRADUATE VOICES (shell always renders — R8) ──────────────── */}
+        <section className="bg-surface dark:border-t dark:border-white/[0.06]">
+          <div className="mx-auto w-full max-w-[1200px] px-4 py-20 md:px-8">
+            <FadeIn>
+              <div className="mx-auto mb-12 max-w-xl text-center">
+                <p className="text-xs font-semibold uppercase tracking-widest text-accent">
+                  Graduate voices
+                </p>
+                <h2 className="mt-2 text-3xl font-bold tracking-tight text-on-surface md:text-4xl">
+                  What our graduates say.
+                </h2>
+              </div>
+            </FadeIn>
+            {testimonials.length > 0 ? (
               <div className="grid gap-5 md:grid-cols-3">
                 {testimonials.map((t, i) => (
                   <FadeIn key={t.id} delay={i * 80}>
@@ -427,68 +475,80 @@ export default async function Home() {
                   </FadeIn>
                 ))}
               </div>
-            </div>
-          </section>
-        )}
+            ) : (
+              <SectionEmpty message="Graduate stories will appear here as cohorts complete their training." />
+            )}
+          </div>
+        </section>
 
-        {/* ── COHORTS / BATCH WALL (gated on batches with logos) ───────── */}
-        {batchesWithLogos.length > 0 && (
-          <section className="border-t border-outline-variant bg-surface-container">
-            <div className="mx-auto w-full max-w-[1200px] px-4 py-16 md:px-8">
-              <FadeIn>
-                <p className="mb-8 text-center text-xs font-semibold uppercase tracking-widest text-on-surface-variant">
-                  Cohorts trained at WSL EMS
-                </p>
-              </FadeIn>
+        {/* ── COHORTS / BATCH WALL (shell always renders — R8) ─────────── */}
+        <section
+          id="cohorts"
+          className="scroll-mt-24 border-t border-outline-variant bg-surface-container dark:border-white/[0.06] dark:bg-surface"
+        >
+          <div className="mx-auto w-full max-w-[1200px] px-4 py-16 md:px-8">
+            <FadeIn>
+              <p className="mb-8 text-center text-xs font-semibold uppercase tracking-widest text-on-surface-variant">
+                Cohorts trained at WSL EMS
+              </p>
+            </FadeIn>
+            {batchesWithLogos.length > 0 ? (
               <FadeIn delay={80}>
                 <div className="grid grid-cols-3 gap-4 sm:grid-cols-4 md:grid-cols-6">
                   {batchesWithLogos.map((b) => (
-                    <div
+                    <Link
                       key={b.id}
-                      className="flex flex-col items-center gap-2"
+                      href={`/cohorts/${b.id}`}
+                      className="group flex flex-col items-center gap-2"
                     >
                       {b.logo?.url && (
                         // biome-ignore lint/performance/noImgElement: admin-uploaded blob logo on an arbitrary domain
                         <img
                           src={b.logo.url}
                           alt={`${b.code} cohort logo`}
-                          className="size-20 rounded-xl border border-outline-variant bg-card object-contain p-2"
+                          className="size-20 rounded-xl border border-outline-variant bg-card object-contain p-2 transition-all group-hover:border-accent group-hover:shadow-clinical-md"
                         />
                       )}
-                      <span className="text-[11px] font-medium text-on-surface-variant">
+                      <span className="text-[11px] font-medium text-on-surface-variant group-hover:text-accent">
                         {b.label ?? b.code}
                       </span>
-                    </div>
+                    </Link>
                   ))}
                 </div>
               </FadeIn>
-            </div>
-          </section>
-        )}
+            ) : (
+              <SectionEmpty message="Cohort crests will appear here as new batches are formed." />
+            )}
+          </div>
+        </section>
 
-        {/* ── NEWS (gated on real posts) ───────────────────────────────── */}
-        {posts.length > 0 && (
-          <section className="border-t border-outline-variant bg-surface-container">
-            <div className="mx-auto w-full max-w-[1200px] px-4 py-20 md:px-8">
-              <FadeIn>
-                <div className="flex items-end justify-between">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-widest text-accent">
-                      Latest updates
-                    </p>
-                    <h2 className="mt-1 text-2xl font-bold text-on-surface">
-                      From the newsroom
-                    </h2>
-                  </div>
-                  <Link
-                    href="/blog"
-                    className="inline-flex items-center gap-1 text-sm font-semibold text-accent transition-colors hover:text-primary"
-                  >
-                    All posts <ArrowRight className="size-4" />
-                  </Link>
+        {/* ── NEWS (shell always renders — R8) ─────────────────────────── */}
+        <section className="border-t border-outline-variant bg-surface-container dark:border-white/[0.06] dark:bg-surface">
+          <div className="mx-auto w-full max-w-[1200px] px-4 py-20 md:px-8">
+            <FadeIn>
+              <div className="flex items-end justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-widest text-accent">
+                    Latest updates
+                  </p>
+                  <h2 className="mt-1 text-2xl font-bold text-on-surface">
+                    From the newsroom
+                  </h2>
                 </div>
-              </FadeIn>
+                <Link
+                  href="/blog"
+                  className="inline-flex items-center gap-1 text-sm font-semibold text-accent transition-colors hover:text-primary dark:hover:text-accent-bright"
+                >
+                  All posts <ArrowRight className="size-4" />
+                </Link>
+              </div>
+            </FadeIn>
 
+            {posts.length === 0 ? (
+              <div className="mt-8">
+                <SectionEmpty message="No published updates yet — announcements and articles land here first." />
+              </div>
+            ) : (
               <div className="mt-8 grid gap-5 md:grid-cols-3">
                 {posts.map((p, i) => (
                   <FadeIn key={p.id} delay={i * 80}>
@@ -521,13 +581,29 @@ export default async function Home() {
                   </FadeIn>
                 ))}
               </div>
-            </div>
-          </section>
-        )}
+            )}
+          </div>
+        </section>
 
-        {/* ── FINAL CTA (dual) ─────────────────────────────────────────── */}
-        <section className="bg-primary text-on-primary">
-          <div className="mx-auto flex w-full max-w-[1200px] flex-col items-center px-4 py-20 text-center md:px-8">
+        {/* ── FINAL CTA (dual) — stable-dark zone: ink in light, deep-teal
+            gradient in dark; text stays light in both modes. ─────────────── */}
+        <section className="relative overflow-hidden bg-primary text-on-primary dark:text-white dark:border-t dark:border-white/[0.06]">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 hidden dark:block"
+            style={{
+              background: "var(--gradient-deep)",
+            }}
+          />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 hidden dark:block"
+            style={{
+              backgroundImage:
+                "radial-gradient(ellipse 70% 80% at 50% 120%, var(--accent-tint-strong) 0%, transparent 60%)",
+            }}
+          />
+          <div className="relative z-10 mx-auto flex w-full max-w-[1200px] flex-col items-center px-4 py-20 text-center md:px-8">
             <span className="flex size-14 items-center justify-center rounded-2xl bg-white/10">
               <ShieldCheck className="size-7" aria-hidden />
             </span>
@@ -541,14 +617,14 @@ export default async function Home() {
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Link
                 href="#verify"
-                className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-white px-7 text-sm font-bold text-primary transition-colors hover:bg-accent-bright hover:text-on-primary"
+                className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-white px-7 text-sm font-bold text-black transition-colors hover:bg-accent-bright hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
               >
                 <Search className="size-4" aria-hidden />
                 Verify a license
               </Link>
               <Link
                 href={APPLY_HREF}
-                className="inline-flex h-12 items-center justify-center gap-2 rounded-lg border border-white/30 px-7 text-sm font-bold text-on-primary transition-colors hover:bg-white/10"
+                className="inline-flex h-12 items-center justify-center gap-2 rounded-lg border border-white/30 px-7 text-sm font-bold transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
               >
                 <Mail className="size-4" aria-hidden />
                 Apply for training
@@ -559,7 +635,7 @@ export default async function Home() {
       </main>
 
       {/* ── FOOTER ───────────────────────────────────────────────────────── */}
-      <footer className="border-t border-outline-variant bg-surface">
+      <footer className="border-t border-outline-variant bg-surface dark:border-white/[0.06] dark:bg-sidebar">
         <div className="mx-auto w-full max-w-[1200px] px-4 py-10 md:px-8">
           <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
             <div className="max-w-sm">
@@ -578,7 +654,7 @@ export default async function Home() {
                 Admissions:{" "}
                 <Link
                   href={APPLY_HREF}
-                  className="font-medium text-accent transition-colors hover:text-primary"
+                  className="font-medium text-accent transition-colors hover:text-primary dark:hover:text-accent-bright"
                 >
                   Apply online →
                 </Link>
@@ -588,32 +664,32 @@ export default async function Home() {
             <nav className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
               <Link
                 href="#verify"
-                className="text-on-surface-variant transition-colors hover:text-primary"
+                className="text-on-surface-variant transition-colors hover:text-primary dark:hover:text-accent-bright"
               >
                 Verify
               </Link>
               <Link
                 href="#programs"
-                className="text-on-surface-variant transition-colors hover:text-primary"
+                className="text-on-surface-variant transition-colors hover:text-primary dark:hover:text-accent-bright"
               >
                 Programs
               </Link>
               <Link
                 href="/blog"
-                className="text-on-surface-variant transition-colors hover:text-primary"
+                className="text-on-surface-variant transition-colors hover:text-primary dark:hover:text-accent-bright"
               >
                 News
               </Link>
               <Link
                 href="/docs"
-                className="text-on-surface-variant transition-colors hover:text-primary"
+                className="text-on-surface-variant transition-colors hover:text-primary dark:hover:text-accent-bright"
               >
                 Help
               </Link>
-              <CookiePreferencesLink className="text-on-surface-variant transition-colors hover:text-primary" />
+              <CookiePreferencesLink className="text-on-surface-variant transition-colors hover:text-primary dark:hover:text-accent-bright" />
               <Link
                 href="/login"
-                className="text-on-surface-variant transition-colors hover:text-primary"
+                className="text-on-surface-variant transition-colors hover:text-primary dark:hover:text-accent-bright"
               >
                 Staff sign in
               </Link>
@@ -638,11 +714,24 @@ export default async function Home() {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function StatCell({ value, label }: { value: string; label: string }) {
+function StatCell({
+  value,
+  label,
+  boost,
+}: {
+  value: string;
+  label: string;
+  boost?: string;
+}) {
   return (
     <div className="px-6 py-8 text-center">
-      <p className="tabular text-3xl font-extrabold tracking-tight text-primary md:text-4xl">
+      <p className="tabular text-3xl font-extrabold tracking-tight text-primary dark:text-accent-bright md:text-4xl">
         {value}
+        {boost && (
+          <span className="ml-2 inline-flex items-center rounded-full bg-success/10 px-2 py-0.5 align-middle text-xs font-bold text-success">
+            ↑ {boost}
+          </span>
+        )}
       </p>
       <p className="mt-1.5 text-sm text-on-surface-variant">{label}</p>
     </div>
@@ -663,7 +752,7 @@ function VerifiedSampleCard() {
       </div>
 
       <div className="mt-4 flex items-center gap-3">
-        <div className="flex size-12 items-center justify-center rounded-full bg-primary/10 font-bold text-primary">
+        <div className="flex size-12 items-center justify-center rounded-full bg-primary/10 font-bold text-primary dark:bg-accent/[0.1] dark:text-accent">
           JC
         </div>
         <div>
@@ -716,7 +805,7 @@ function StepCard({
         {number}
       </span>
       <div className="relative">
-        <div className="flex size-10 items-center justify-center rounded-lg bg-accent/10 text-accent">
+        <div className="flex size-10 items-center justify-center rounded-lg bg-accent/10 text-accent dark:bg-accent/[0.08] dark:ring-1 dark:ring-accent/[0.15]">
           <Icon className="size-5" aria-hidden />
         </div>
         <h3 className="mt-4 font-semibold text-on-surface">{title}</h3>
@@ -766,6 +855,7 @@ function ProgramCard({
   hours,
   credential,
   body,
+  featured = false,
 }: {
   icon: LucideIcon;
   tag: string;
@@ -773,13 +863,33 @@ function ProgramCard({
   hours: string;
   credential: string;
   body: string;
+  /** The flagship program — accent ring, badge, and a solid CTA. */
+  featured?: boolean;
 }) {
   return (
-    <div className="flex h-full flex-col rounded-2xl border border-outline-variant bg-card p-6 shadow-clinical transition-all duration-200 hover:-translate-y-0.5 hover:border-accent hover:shadow-clinical-md">
-      <div className="flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
+    <div
+      className={
+        featured
+          ? "relative flex h-full flex-col rounded-2xl border border-accent/60 bg-card p-6 shadow-clinical-md ring-2 ring-accent/30 transition-all duration-200 hover:-translate-y-0.5 dark:bg-accent/[0.04]"
+          : "flex h-full flex-col rounded-2xl border border-outline-variant bg-card p-6 shadow-clinical transition-all duration-200 hover:-translate-y-0.5 hover:border-accent hover:shadow-clinical-md"
+      }
+    >
+      {featured && (
+        <span className="absolute -top-3 left-6 inline-flex items-center gap-1 rounded-full bg-accent px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-on-accent shadow-clinical">
+          <Activity className="size-3" aria-hidden />
+          Flagship course
+        </span>
+      )}
+      <div className="flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary dark:bg-accent/[0.08] dark:text-accent dark:ring-1 dark:ring-accent/[0.15]">
         <Icon className="size-5" aria-hidden />
       </div>
-      <span className="mt-4 inline-flex w-fit items-center rounded-full border border-outline-variant bg-surface px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+      <span
+        className={
+          featured
+            ? "mt-4 inline-flex w-fit items-center rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-accent"
+            : "mt-4 inline-flex w-fit items-center rounded-full border border-outline-variant bg-surface px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant"
+        }
+      >
         {tag}
       </span>
       <h3 className="mt-3 font-semibold leading-snug text-on-surface">
@@ -790,11 +900,17 @@ function ProgramCard({
       </p>
       <div className="mt-4 flex items-center gap-1.5 text-xs text-on-surface-variant">
         <Clock className="size-3.5 shrink-0" aria-hidden />
-        {hours} · {credential}
+        <span className={featured ? "font-semibold text-on-surface" : ""}>
+          {hours} · {credential}
+        </span>
       </div>
       <Link
         href={APPLY_HREF}
-        className="mt-5 inline-flex h-10 items-center justify-center gap-1.5 rounded-lg border border-primary/20 bg-primary/5 text-sm font-semibold text-primary transition-colors hover:bg-primary hover:text-on-primary"
+        className={
+          featured
+            ? "mt-5 inline-flex h-10 items-center justify-center gap-1.5 rounded-lg bg-primary text-sm font-semibold text-on-primary transition-colors hover:bg-primary-container focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent dark:bg-accent dark:text-on-accent dark:hover:bg-accent-bright"
+            : "mt-5 inline-flex h-10 items-center justify-center gap-1.5 rounded-lg border border-primary/20 bg-primary/5 text-sm font-semibold text-primary transition-colors hover:bg-primary hover:text-on-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent dark:border-accent/25 dark:bg-accent/[0.06] dark:text-accent dark:hover:bg-accent dark:hover:text-white"
+        }
       >
         <Mail className="size-4" aria-hidden />
         Apply / Request info
@@ -844,7 +960,7 @@ function TestimonialCard({
         {quote}
       </blockquote>
       <div className="mt-5 flex items-center gap-3 border-t border-outline-variant pt-4">
-        <div className="flex size-9 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+        <div className="flex size-9 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary dark:bg-accent/[0.1] dark:text-accent">
           {initials}
         </div>
         <div>
@@ -885,7 +1001,7 @@ function TeamCard({
           className="size-20 rounded-full object-cover"
         />
       ) : (
-        <div className="flex size-20 items-center justify-center rounded-full bg-primary/10 text-xl font-bold text-primary">
+        <div className="flex size-20 items-center justify-center rounded-full bg-primary/10 text-xl font-bold text-primary dark:bg-accent/[0.1] dark:text-accent">
           {initials}
         </div>
       )}
@@ -894,6 +1010,15 @@ function TeamCard({
       {credentials && (
         <p className="mt-1 text-xs text-on-surface-variant">{credentials}</p>
       )}
+    </div>
+  );
+}
+
+/** Designed empty placeholder for always-rendered homepage sections (R8). */
+function SectionEmpty({ message }: { message: string }) {
+  return (
+    <div className="rounded-2xl border border-dashed border-outline-variant bg-card/50 px-6 py-12 text-center text-sm text-on-surface-variant dark:border-white/[0.1] dark:bg-white/[0.02]">
+      {message}
     </div>
   );
 }

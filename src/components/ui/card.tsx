@@ -1,12 +1,14 @@
 import type * as React from "react";
 import { cn } from "@/lib/utils";
 
-// Level 1 surface: pure white, 1px soft border, large radius for containers.
+// Level 1 surface. Dark: border-white/7 creates a visible edge highlight on
+// the elevated card; shadow token resolves to depth-via-darkness in dark mode.
 export function Card({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       className={cn(
-        "rounded-lg border border-outline-variant/60 bg-card shadow-[var(--shadow-clinical)]",
+        "rounded-lg border border-outline-variant/60 bg-card shadow-[var(--shadow-clinical)] " +
+          "dark:border-white/[0.07]",
         className,
       )}
       {...props}

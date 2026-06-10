@@ -17,6 +17,9 @@ export default async function EditPostPage({
   const post = await prisma.blogPost.findUnique({ where: { id } });
   if (!post) notFound();
 
+  const allTags = await prisma.blogPost.findMany({ select: { tags: true } });
+  const tagSuggestions = [...new Set(allTags.flatMap((p) => p.tags))].sort();
+
   const action = updatePost.bind(null, post.id);
 
   return (
@@ -39,8 +42,10 @@ export default async function EditPostPage({
           content: post.content,
           status: post.status,
           coverImage: post.coverImage,
+          tags: post.tags,
         }}
         submitLabel="Save changes"
+        tagSuggestions={tagSuggestions}
       />
     </div>
   );

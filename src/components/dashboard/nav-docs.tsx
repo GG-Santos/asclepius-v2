@@ -18,9 +18,10 @@ import { cn } from "@/lib/utils";
 function linkClass(active: boolean) {
   return cn(
     "flex flex-1 items-center gap-2 rounded-md px-3 py-1.5 text-sm transition-colors",
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
     active
-      ? "bg-on-primary/15 font-medium text-on-primary"
-      : "text-on-primary-container hover:bg-on-primary/10 hover:text-on-primary",
+      ? "bg-accent/[0.08] font-semibold text-accent"
+      : "text-on-surface-variant hover:bg-surface-container hover:text-on-surface dark:hover:bg-white/[0.04]",
   );
 }
 
@@ -73,7 +74,7 @@ function FolderItem({
             onClick={() => setOpen((o) => !o)}
             aria-label={open ? "Collapse section" : "Expand section"}
             aria-expanded={open}
-            className="shrink-0 rounded-md p-1 text-on-primary-container transition-colors hover:bg-on-primary/10 hover:text-on-primary"
+            className="shrink-0 rounded-md p-1 text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent dark:hover:bg-white/[0.04]"
           >
             <ChevronRight
               className={cn("size-4 transition-transform", open && "rotate-90")}
@@ -83,7 +84,7 @@ function FolderItem({
         ) : null}
       </div>
       {open && hasChildren ? (
-        <ul className="ms-4 mt-1 space-y-1 border-s border-on-primary/15 ps-2">
+        <ul className="ms-4 mt-1 space-y-1 border-s border-outline-variant ps-2 dark:border-white/[0.08]">
           {renderNodes(node.children, pathname)}
         </ul>
       ) : null}
@@ -97,7 +98,7 @@ function renderNodes(nodes: PageTree.Node[], pathname: string): ReactNode[] {
       return (
         <li
           key={node.$id ?? `sep-${i}`}
-          className="mt-3 px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-on-primary-container/60 first:mt-0"
+          className="mt-3 px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-on-surface-variant/70 first:mt-0"
         >
           {node.name}
         </li>

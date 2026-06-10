@@ -18,6 +18,13 @@ export type SessionUser = {
 export const getSession = cache(async () => {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return null;
+  // Admin-locked accounts are denied access (and their sessions are purged on
+  // lock, so this is a belt-and-braces check for any still-valid cookie).
+  const account = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { locked: true },
+  });
+  if (account?.locked) return null;
   const u = session.user as { role?: string; graduateLcn?: string | null };
   const role = (u.role ?? "writer") as Role;
   return {
@@ -40,6 +47,23 @@ export async function requireAdmin() {
   const session = await requireUser();
   if (session.user.role !== "admin") redirect("/dashboard?denied=graduates");
   return session;
+}
+
+/**
+ * True when `userId` is the assigned professor of the batch with `batchCode`
+ * AND that batch is not yet graduated. Used to scope professor write access to
+ * their own active cohorts (graduated batches become view-only).
+ */
+export async function canProfessorEditBatch(
+  userId: string,
+  batchCode: string | null,
+): Promise<boolean> {
+  if (!batchCode) return false;
+  const batch = await prisma.batch.findUnique({
+    where: { code: batchCode },
+    select: { professorId: true, graduated: true },
+  });
+  return Boolean(batch && batch.professorId === userId && !batch.graduated);
 }
 
 /**

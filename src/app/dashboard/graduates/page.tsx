@@ -1,25 +1,32 @@
 import type { Prisma } from "@prisma/client";
-import { Plus, Search } from "lucide-react";
+import { Plus } from "lucide-react";
 import Link from "next/link";
-import {
-  type GraduateRow,
-  GraduatesTable,
-} from "@/components/dashboard/graduates-table";
+import { GraduatesDataTable } from "@/components/dashboard/graduates-data-table";
+import type { GraduateRow } from "@/components/dashboard/graduates-table";
+import { PageHeader } from "@/components/dashboard/page-header";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { displayName, verificationState } from "@/lib/graduate";
 import { prisma } from "@/lib/prisma";
+import { rankGraduates } from "@/lib/ranking";
 import { requireAdmin } from "@/lib/session";
 
 const STATUSES = ["STUDENT", "GRADUATE", "ARCHIVED"] as const;
+const STATES = ["valid", "expiring", "expired", "undated"] as const;
+type StateFilter = (typeof STATES)[number];
+const STATE_LABEL: Record<StateFilter, string> = {
+  valid: "Valid",
+  expiring: "Expiring ≤90d",
+  expired: "Lapsed",
+  undated: "Undated",
+};
 
 export default async function GraduatesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; status?: string }>;
+  searchParams: Promise<{ q?: string; status?: string; state?: string }>;
 }) {
   await requireAdmin();
-  const { q, status } = await searchParams;
+  const { q, status, state } = await searchParams;
 
   // This section shows graduates by default; "ALL" lifts the filter.
   const effective = status ?? "GRADUATE";
@@ -30,6 +37,22 @@ export default async function GraduatesPage({
   ) {
     where.status = effective as (typeof STATUSES)[number];
   }
+
+  // Validity drill-down (from dashboard KPIs/alerts). Mirrors the analytics
+  // buckets: validity = expiresAt vs now; "undated" = no expiry on record.
+  const activeState = STATES.includes(state as StateFilter)
+    ? (state as StateFilter)
+    : null;
+  if (activeState) {
+    const now = new Date();
+    const in90 = new Date(Date.now() + 90 * 86_400_000);
+    if (activeState === "valid") where.expiresAt = { gt: now };
+    else if (activeState === "expiring")
+      where.expiresAt = { gte: now, lte: in90 };
+    else if (activeState === "expired") where.expiresAt = { lt: now };
+    else where.expiresAt = null;
+  }
+
   if (q?.trim()) {
     where.OR = [
       { lcn: { contains: q.trim(), mode: "insensitive" } },
@@ -44,6 +67,29 @@ export default async function GraduatesPage({
     take: 500,
   });
 
+  // Professor is a batch attribute — map it onto each graduate by batch code.
+  const batchProfs = await prisma.batch.findMany({
+    select: { code: true, professor: true },
+  });
+  const profByCode = new Map(
+    batchProfs.map((b) => [b.code, b.professor] as const),
+  );
+
+  // Global weighted ranking across all graduate-status records.
+  const ranked = await prisma.graduate.findMany({
+    where: { status: "GRADUATE" },
+    select: {
+      id: true,
+      scoreFWE: true,
+      scoreSJE: true,
+      scoreEP: true,
+      scorePAS: true,
+      scoreCCST: true,
+      scoreCCSM: true,
+    },
+  });
+  const globalRanks = rankGraduates(ranked.map((x) => ({ id: x.id, six: x })));
+
   const rows: GraduateRow[] = graduates.map((g) => ({
     id: g.id,
     lcn: g.lcn,
@@ -51,58 +97,44 @@ export default async function GraduatesPage({
     status: g.status,
     state: verificationState(g),
     batchCode: g.batchCode,
+    professor: g.batchCode ? (profByCode.get(g.batchCode) ?? null) : null,
     expirationRaw: g.expirationRaw,
     legacy: g.legacy,
     photoUrl: g.photo?.url ?? null,
+    rank: globalRanks.get(g.id)?.rank ?? null,
   }));
 
   return (
     <div className="mx-auto max-w-[1200px] space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-on-surface">
-            Graduates &amp; Students
-          </h1>
-          <p className="mt-1 text-sm text-on-surface-variant">
+      <PageHeader
+        title="Graduates"
+        meta={
+          <p>
             {graduates.length} record{graduates.length === 1 ? "" : "s"}
+            {activeState && (
+              <>
+                {" · "}
+                {STATE_LABEL[activeState]}{" "}
+                <Link
+                  href={`/dashboard/graduates?status=${effective}`}
+                  className="text-accent hover:underline"
+                >
+                  clear
+                </Link>
+              </>
+            )}
           </p>
-        </div>
-        <Button asChild>
-          <Link href="/dashboard/graduates/new">
-            <Plus aria-hidden /> New record
-          </Link>
-        </Button>
-      </div>
+        }
+        actions={
+          <Button asChild>
+            <Link href="/dashboard/graduates/new">
+              <Plus aria-hidden /> New record
+            </Link>
+          </Button>
+        }
+      />
 
-      <form
-        className="flex flex-wrap items-center gap-2"
-        action="/dashboard/graduates"
-      >
-        <div className="relative flex-1 min-w-[220px]">
-          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-on-surface-variant" />
-          <Input
-            name="q"
-            defaultValue={q ?? ""}
-            placeholder="Search name or license number"
-            className="pl-9"
-          />
-        </div>
-        <select
-          name="status"
-          defaultValue={status ?? "GRADUATE"}
-          className="h-11 rounded border border-outline-variant bg-card px-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
-        >
-          <option value="GRADUATE">Graduate</option>
-          <option value="STUDENT">Student</option>
-          <option value="ARCHIVED">Archived</option>
-          <option value="ALL">All statuses</option>
-        </select>
-        <Button type="submit" variant="outline">
-          Filter
-        </Button>
-      </form>
-
-      <GraduatesTable rows={rows} />
+      <GraduatesDataTable rows={rows} />
     </div>
   );
 }

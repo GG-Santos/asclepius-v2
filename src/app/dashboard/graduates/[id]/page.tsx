@@ -6,16 +6,17 @@ import { GraduateDetailActions } from "@/components/dashboard/graduate-detail-ac
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CredentialArtifacts } from "@/components/verify/credential-artifacts";
+import { imageToDataUri } from "@/lib/data-uri";
 import {
   displayName,
   formatLastFirst,
-  rankingLabel,
   SCORE_ROWS,
   scoreTotal,
   verificationState,
 } from "@/lib/graduate";
 import { prisma } from "@/lib/prisma";
-import { verifyQrDataUrl } from "@/lib/qr";
+import { certificateQrDataUrl, verifyQrDataUrl } from "@/lib/qr";
+import { medalFor, rankGraduates } from "@/lib/ranking";
 import { requireAdmin } from "@/lib/session";
 
 const STATUS_BADGE: Record<
@@ -57,14 +58,16 @@ export default async function GraduateDetailPage({
   const name = displayName(g);
   const state = verificationState(g);
   const total = scoreTotal(g);
-  const rank = rankingLabel(g.ranking);
   const qrDataUrl = await verifyQrDataUrl(g.lcn);
+  const certQrDataUrl = await certificateQrDataUrl(g.lcn);
   const statusBadge = STATUS_BADGE[g.status];
 
-  // Global ranking (auto): position by total score among all non-archived.
-  const scored = await prisma.graduate.findMany({
+  // Ranking (auto, weighted): batch + global among non-archived graduates.
+  const allGrads = await prisma.graduate.findMany({
     where: { status: { not: "ARCHIVED" } },
     select: {
+      id: true,
+      batchCode: true,
       scoreFWE: true,
       scoreSJE: true,
       scoreEP: true,
@@ -73,16 +76,28 @@ export default async function GraduateDetailPage({
       scoreCCSM: true,
     },
   });
-  const totalsAll = scored.map((s) => scoreTotal(s) ?? 0).filter((t) => t > 0);
-  const myTotal = total ?? 0;
-  const globalRank =
-    myTotal > 0 ? totalsAll.filter((t) => t > myTotal).length + 1 : null;
-  const globalCount = totalsAll.length;
+  const globalRanks = rankGraduates(
+    allGrads.map((x) => ({ id: x.id, six: x })),
+  );
+  const batchGrads = g.batchCode
+    ? allGrads.filter((x) => x.batchCode === g.batchCode)
+    : [];
+  const batchRank =
+    rankGraduates(batchGrads.map((x) => ({ id: x.id, six: x }))).get(g.id)
+      ?.rank ?? null;
+  const globalRank = globalRanks.get(g.id)?.rank ?? null;
+  const globalCount = [...globalRanks.values()].filter(
+    (r) => r.rank != null,
+  ).length;
 
   const portalAccount = await prisma.user.findFirst({
     where: { graduateLcn: g.lcn },
     select: { email: true },
   });
+
+  // Photo inlined as a data URI so client-side PNG rasterization of the
+  // artifacts never hits a cross-origin canvas taint.
+  const photoDataUri = await imageToDataUri(g.photo?.url ?? null);
 
   return (
     <div className="mx-auto max-w-[1100px] space-y-6">
@@ -122,6 +137,9 @@ export default async function GraduateDetailPage({
               expiration={g.expirationRaw}
               photoUrl={g.photo?.url ?? null}
               qrDataUrl={qrDataUrl}
+              certQrDataUrl={certQrDataUrl}
+              downloadable
+              photoDataUrl={photoDataUri}
             />
           </CardContent>
         </Card>
@@ -158,13 +176,13 @@ export default async function GraduateDetailPage({
                 }
               />
               <Row
-                label="Ranking (auto)"
+                label="Ranking (weighted)"
                 value={
                   <span className="inline-flex items-center gap-2">
                     <span>
-                      {g.ranking && g.ranking > 0
-                        ? `${rank.medal ?? ""} Batch #${g.ranking}`
-                        : "Batch — Passed"}
+                      {batchRank
+                        ? `${medalFor(batchRank) ?? ""} Batch #${batchRank}`
+                        : "Batch —"}
                     </span>
                     {globalRank && (
                       <span className="text-on-surface-variant">
@@ -202,9 +220,9 @@ export default async function GraduateDetailPage({
           <Card>
             <CardHeader className="flex-row items-center justify-between">
               <CardTitle className="text-base">Proficiency scores</CardTitle>
-              <span className="inline-flex items-center gap-1 text-sm font-semibold text-success">
-                {rank.medal && <span>{rank.medal}</span>}
-                {g.ranking && g.ranking > 0 ? rank.label : "Passed"}
+              <span className="inline-flex items-center gap-1 text-sm font-semibold text-on-surface">
+                {medalFor(batchRank) && <span>{medalFor(batchRank)}</span>}
+                {batchRank ? `Batch #${batchRank}` : "—"}
               </span>
             </CardHeader>
             <CardContent className="pt-0">

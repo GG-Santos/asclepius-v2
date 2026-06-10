@@ -85,7 +85,7 @@ export function StudentsTable({
       <div className="overflow-x-auto rounded-lg border border-outline-variant/60">
         <table className="min-w-full border-collapse text-sm">
           <thead>
-            <tr className="bg-primary text-on-primary">
+            <tr className="border-b border-outline-variant bg-surface-container text-on-surface dark:border-white/[0.06]">
               <th className="px-3 py-2 text-left font-semibold">Photo</th>
               <th className="px-3 py-2 text-left font-semibold">Name</th>
               <th className="px-3 py-2 text-left font-semibold">Enrollment</th>

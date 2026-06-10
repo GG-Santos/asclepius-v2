@@ -2,6 +2,7 @@
 
 import {
   BookOpen,
+  Boxes,
   ChevronsUpDown,
   ExternalLink,
   FileText,
@@ -10,6 +11,7 @@ import {
   LayoutDashboard,
   Library,
   LogOut,
+  Settings,
   ShieldCheck,
   ShieldUser,
   Users,
@@ -34,12 +36,22 @@ type NavItem = {
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   adminOnly?: boolean;
+  professor?: boolean; // visible to professors
 };
 
 type NavGroup = { label?: string; items: NavItem[] };
 
 const GROUPS: NavGroup[] = [
-  { items: [{ href: "/dashboard", label: "Overview", icon: LayoutDashboard }] },
+  {
+    items: [
+      {
+        href: "/dashboard",
+        label: "Overview",
+        icon: LayoutDashboard,
+        professor: true,
+      },
+    ],
+  },
   {
     label: "Registry",
     items: [
@@ -73,6 +85,12 @@ const GROUPS: NavGroup[] = [
         adminOnly: true,
       },
       { href: "/dashboard/blog", label: "Blog", icon: FileText },
+      {
+        href: "/dashboard/models",
+        label: "3D Models",
+        icon: Boxes,
+        adminOnly: true,
+      },
       { href: "/docs", label: "Docs", icon: BookOpen },
     ],
   },
@@ -98,7 +116,11 @@ function isActive(pathname: string, href: string) {
 function visibleGroups(role: Role): NavGroup[] {
   return GROUPS.map((g) => ({
     ...g,
-    items: g.items.filter((i) => !i.adminOnly || role === "admin"),
+    items: g.items.filter((i) => {
+      if (role === "admin") return true;
+      if (role === "professor") return i.professor === true;
+      return !i.adminOnly; // writer
+    }),
   })).filter((g) => g.items.length > 0);
 }
 
@@ -114,17 +136,20 @@ function NavUser({
   const router = useRouter();
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className="flex w-full items-center gap-2 rounded-lg p-2 text-left transition-colors hover:bg-on-primary/10 focus:outline-none">
-        <Avatar name={name} className="bg-on-primary/15 text-on-primary" />
+      <DropdownMenuTrigger className="flex w-full items-center gap-2 rounded-lg p-2 text-left transition-colors hover:bg-surface-container focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent dark:hover:bg-white/[0.04]">
+        <Avatar
+          name={name}
+          className="bg-surface-container text-on-surface dark:bg-surface-high"
+        />
         <div className="grid min-w-0 flex-1 leading-tight">
-          <span className="truncate text-sm font-medium text-on-primary">
+          <span className="truncate text-sm font-medium text-on-surface">
             {name}
           </span>
-          <span className="truncate text-xs text-on-primary-container/70">
+          <span className="truncate text-xs text-on-surface-variant">
             {email}
           </span>
         </div>
-        <ChevronsUpDown className="size-4 text-on-primary-container/70" />
+        <ChevronsUpDown className="size-4 text-on-surface-variant" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" side="top" className="w-60">
         <DropdownMenuLabel>
@@ -132,6 +157,11 @@ function NavUser({
           <p className="text-xs capitalize text-on-surface-variant">{role}</p>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link href="/dashboard/settings">
+            <Settings /> Account settings
+          </Link>
+        </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <Link href="/" target="_blank">
             <ExternalLink /> View public site
@@ -166,9 +196,16 @@ export function DashboardSidebar({
   const groups = visibleGroups(role);
 
   return (
-    <aside className="hidden w-64 shrink-0 flex-col bg-primary text-on-primary md:flex">
+    <aside
+      className={cn(
+        "hidden w-64 shrink-0 flex-col border-r border-outline-variant bg-sidebar text-on-surface md:flex",
+        /* Dark: sidebar is the basement — visibly darker than the canvas.
+           Separation is by luminance + the right-edge hairline, not hue alone. */
+        "dark:border-white/[0.06]",
+      )}
+    >
       <div className="flex h-16 items-center gap-2 px-5 font-semibold">
-        <ShieldCheck className="size-5 text-accent-bright" aria-hidden />
+        <ShieldCheck className="size-5 text-accent" aria-hidden />
         <span>WSL EMS</span>
       </div>
 
@@ -176,7 +213,7 @@ export function DashboardSidebar({
         {groups.map((group, gi) => (
           <div key={group.label ?? `g${gi}`} className="flex flex-col gap-1">
             {group.label && (
-              <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-on-primary-container/50">
+              <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-on-surface-variant/70">
                 {group.label}
               </p>
             )}
@@ -189,9 +226,10 @@ export function DashboardSidebar({
                   href={item.href}
                   className={cn(
                     "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
                     active
-                      ? "bg-on-primary/15 text-on-primary"
-                      : "text-on-primary-container hover:bg-on-primary/10 hover:text-on-primary",
+                      ? "bg-accent/[0.08] font-semibold text-accent"
+                      : "text-on-surface-variant hover:bg-surface-container hover:text-on-surface dark:hover:bg-white/[0.04]",
                   )}
                 >
                   <Icon className="size-4" />
@@ -203,7 +241,7 @@ export function DashboardSidebar({
         ))}
       </nav>
 
-      <div className="border-t border-on-primary/10 p-3">
+      <div className="border-t border-outline-variant p-3 dark:border-white/[0.06]">
         <NavUser name={name} email={email} role={role} />
       </div>
     </aside>
@@ -224,8 +262,9 @@ export function DashboardMobileNav({ role }: { role: Role }) {
             href={item.href}
             className={cn(
               "inline-flex items-center gap-1.5 whitespace-nowrap rounded px-3 py-1.5 text-sm font-medium",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
               active
-                ? "bg-primary text-on-primary"
+                ? "bg-accent/[0.1] font-semibold text-accent"
                 : "text-on-surface-variant hover:bg-surface-container",
             )}
           >

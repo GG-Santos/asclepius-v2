@@ -1,7 +1,8 @@
 import type { Prisma } from "@prisma/client";
 import { Plus } from "lucide-react";
 import Link from "next/link";
-import { StudentListClient } from "@/components/dashboard/student-list-client";
+import { PageHeader } from "@/components/dashboard/page-header";
+import { StudentsDataTable } from "@/components/dashboard/students-data-table";
 import type { StudentRow } from "@/components/dashboard/students-table";
 import { Button } from "@/components/ui/button";
 import { scoreTotal } from "@/lib/graduate";
@@ -47,20 +48,25 @@ export default async function StudentsPage({
 
   return (
     <div className="mx-auto max-w-[1200px] space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold text-on-surface">Students</h1>
-        <Button asChild>
-          <Link href="/dashboard/students/new">
-            <Plus aria-hidden /> New student
-          </Link>
-        </Button>
-      </div>
-
-      <StudentListClient
-        rows={rows}
-        initialQuery={q}
-        inTrainingCount={inTraining}
+      <PageHeader
+        title="Students"
+        meta={
+          <p>
+            <span className="font-medium text-on-surface">{inTraining}</span> in
+            training
+            {inTraining > 0 && " · Graduate a student to issue a license"}.
+          </p>
+        }
+        actions={
+          <Button asChild>
+            <Link href="/dashboard/students/new">
+              <Plus aria-hidden /> New student
+            </Link>
+          </Button>
+        }
       />
+
+      <StudentsDataTable rows={rows} />
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import { PageHeader } from "@/components/dashboard/page-header";
 import {
   type TestimonialRow,
   TestimonialsManager,
@@ -8,7 +9,12 @@ import { requireAdmin } from "@/lib/session";
 export default async function TestimonialsPage() {
   await requireAdmin();
   const items = await prisma.testimonial.findMany({
-    orderBy: [{ order: "asc" }, { createdAt: "desc" }],
+    orderBy: [
+      { pinned: "desc" },
+      { approved: "desc" },
+      { order: "asc" },
+      { createdAt: "desc" },
+    ],
   });
 
   const rows: TestimonialRow[] = items.map((t) => ({
@@ -18,17 +24,28 @@ export default async function TestimonialsPage() {
     quote: t.quote,
     rating: t.rating,
     approved: t.approved,
+    pinned: t.pinned,
+    fromPortal: Boolean(t.submittedByLcn),
   }));
 
+  const pendingCount = rows.filter((r) => !r.approved).length;
+
   return (
-    <div className="mx-auto max-w-[1000px] space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-on-surface">Testimonials</h1>
-        <p className="mt-1 text-sm text-on-surface-variant">
-          Graduate quotes shown on the homepage. Only approved testimonials are
-          public.
-        </p>
-      </div>
+    <div className="mx-auto max-w-[1200px] space-y-6">
+      <PageHeader
+        title="Testimonials"
+        meta={
+          <p>
+            Graduates submit these from their portal. Approve to publish, and
+            pin the best ones to show first on the homepage.
+            {pendingCount > 0 && (
+              <span className="ml-1 font-medium text-warning">
+                {pendingCount} awaiting review.
+              </span>
+            )}
+          </p>
+        }
+      />
       <TestimonialsManager rows={rows} />
     </div>
   );

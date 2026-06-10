@@ -1,4 +1,4 @@
-import { GraduationCap } from "lucide-react";
+import { GraduationCap, Settings as SettingsIcon } from "lucide-react";
 import Link from "next/link";
 import { SignOutButton } from "@/components/sign-out-button";
 import { requireGraduate } from "@/lib/session";
@@ -25,15 +25,21 @@ export default async function PortalAppLayout({
             <nav className="hidden items-center gap-1 sm:flex">
               <Link
                 href="/portal"
-                className="rounded px-3 py-1.5 text-sm font-medium text-on-surface-variant hover:bg-surface-container hover:text-on-surface"
+                className="rounded px-3 py-1.5 text-sm font-medium text-on-surface-variant hover:bg-surface-container hover:text-on-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
               >
                 Home
               </Link>
               <Link
                 href="/portal/courses"
-                className="rounded px-3 py-1.5 text-sm font-medium text-on-surface-variant hover:bg-surface-container hover:text-on-surface"
+                className="rounded px-3 py-1.5 text-sm font-medium text-on-surface-variant hover:bg-surface-container hover:text-on-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
               >
                 Courses
+              </Link>
+              <Link
+                href="/portal/settings"
+                className="rounded px-3 py-1.5 text-sm font-medium text-on-surface-variant hover:bg-surface-container hover:text-on-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              >
+                Settings
               </Link>
             </nav>
           </div>
@@ -41,6 +47,14 @@ export default async function PortalAppLayout({
             <span className="hidden text-sm text-on-surface-variant sm:block">
               {session.user.name}
             </span>
+            <Link
+              href="/portal/settings"
+              title="Account settings"
+              className="rounded p-1.5 text-on-surface-variant hover:bg-surface-container hover:text-on-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent sm:hidden"
+            >
+              <SettingsIcon className="size-4" aria-hidden />
+              <span className="sr-only">Account settings</span>
+            </Link>
             <SignOutButton redirectTo="/portal/login" />
           </div>
         </div>

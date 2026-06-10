@@ -16,6 +16,7 @@ import {
   type StudentActionState,
 } from "@/app/dashboard/students/actions";
 import { BatchSelect } from "@/components/dashboard/batch-select";
+import { ConfirmDialog } from "@/components/dashboard/confirm-button";
 import { PromoteStudentDialog } from "@/components/dashboard/promote-student-dialog";
 import { StudentPhotoPanel } from "@/components/dashboard/student-photo-panel";
 import { Button } from "@/components/ui/button";
@@ -119,6 +120,12 @@ export function StudentForm({
   const fe = state.fieldErrors ?? {};
   const [busy, startBusy] = useTransition();
   const [graduateOpen, setGraduateOpen] = useState(false);
+  // Confirm-before-apply: submits (button or Enter key) first pass through
+  // the save dialog; `confirmedRef` lets the re-dispatched submit proceed.
+  const formRef = useRef<HTMLFormElement>(null);
+  const confirmedRef = useRef(false);
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   // Controlled quiz score state for live pass/fail display
   const [quizScores, setQuizScores] = useState<
@@ -167,9 +174,23 @@ export function StudentForm({
     if (state.error) toast.error(state.error);
   }, [state, router, successMessage, redirectTo]);
 
-  function onDelete() {
+  function onSubmitIntercept(e: React.FormEvent<HTMLFormElement>) {
+    if (!confirmedRef.current) {
+      e.preventDefault();
+      setSaveOpen(true);
+      return;
+    }
+    confirmedRef.current = false;
+  }
+
+  function confirmSave() {
+    setSaveOpen(false);
+    confirmedRef.current = true;
+    formRef.current?.requestSubmit();
+  }
+
+  function confirmDelete() {
     if (!studentId) return;
-    if (!confirm("Delete this student? This cannot be undone.")) return;
     const fd = new FormData();
     fd.set("id", studentId);
     startBusy(async () => {
@@ -178,6 +199,7 @@ export function StudentForm({
       router.push("/dashboard/students");
       router.refresh();
     });
+    setDeleteOpen(false);
   }
 
   function onGraduate() {
@@ -217,46 +239,106 @@ export function StudentForm({
           onSuccess={handleGraduateSuccess}
         />
       )}
-      <form action={formAction} className="mx-auto w-full max-w-6xl">
-        <div className="overflow-hidden rounded-xl border border-outline-variant/60 bg-card shadow-[var(--shadow-clinical)]">
-          <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
+      <ConfirmDialog
+        open={saveOpen}
+        onOpenChange={setSaveOpen}
+        onConfirm={confirmSave}
+        title={
+          studentId ? "Apply changes to this student?" : "Create this student?"
+        }
+        description={
+          studentId
+            ? "Saves these edits to the student's training record."
+            : "Adds this student to the training roster."
+        }
+        confirmLabel={submitLabel}
+        tone="primary"
+        pending={pending}
+      />
+      <ConfirmDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        onConfirm={confirmDelete}
+        title="Delete this student?"
+        description="Permanently removes the student and their training record. This cannot be undone."
+        confirmLabel="Delete"
+        tone="danger"
+        pending={busy}
+      />
+      <form
+        ref={formRef}
+        action={formAction}
+        onSubmit={onSubmitIntercept}
+        className="mx-auto w-full max-w-6xl"
+      >
+        {/* Sticky action bar (R6): the save affordance stays visible at all
+            times; section anchors jump straight to each concern. */}
+        <div className="sticky top-0 z-20 mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-outline-variant/60 bg-card/95 px-4 py-3 shadow-[var(--shadow-clinical)] backdrop-blur dark:border-white/[0.08]">
+          <div className="flex min-w-0 items-center gap-4">
             <div className="flex items-center gap-2 font-semibold text-accent">
               <UserRound className="size-5" aria-hidden />
               <span>EMT Trainee</span>
             </div>
-            <div className="flex items-center gap-2">
-              <Button type="submit" size="sm" disabled={pending || busy}>
-                {pending ? "Saving…" : submitLabel}
-              </Button>
-              {studentId && (
-                <>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    disabled={busy || pending}
-                    onClick={onGraduate}
-                    className="border-success/30 bg-success/10 text-success hover:bg-success/20"
-                  >
-                    <GraduationCap aria-hidden /> Graduate
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    disabled={busy || pending}
-                    onClick={onDelete}
-                    className="border-secondary/30 bg-secondary/10 text-secondary hover:bg-secondary/20"
-                  >
-                    <Trash2 aria-hidden /> Delete
-                  </Button>
-                </>
-              )}
-            </div>
+            <nav
+              aria-label="Form sections"
+              className="hidden items-center gap-1 md:flex"
+            >
+              {[
+                ["#student-photo", "Photo"],
+                ["#student-profile", "Profile"],
+                ["#student-quizzes", "Quizzes"],
+                ["#student-practicals", "Practicals"],
+              ].map(([href, label]) => (
+                <a
+                  key={href}
+                  href={href}
+                  className="rounded px-2 py-1 text-xs font-medium text-on-surface-variant hover:bg-surface-container hover:text-on-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                >
+                  {label}
+                </a>
+              ))}
+            </nav>
           </div>
+          <div className="flex items-center gap-2">
+            <Button type="submit" size="sm" disabled={pending || busy}>
+              {pending ? "Saving…" : submitLabel}
+            </Button>
+            {studentId && (
+              <>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={busy || pending}
+                  onClick={onGraduate}
+                  className="border-success/30 bg-success/10 text-success hover:bg-success/20"
+                >
+                  <GraduationCap aria-hidden /> Graduate
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={busy || pending}
+                  onClick={() => setDeleteOpen(true)}
+                  className="border-secondary/30 bg-secondary/10 text-secondary hover:bg-secondary/20"
+                >
+                  <Trash2 aria-hidden /> Delete
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
 
-          <div className="flex flex-col border-outline-variant/60 border-t md:flex-row">
-            <div className="border-outline-variant/60 p-5 md:w-1/3 md:border-r">
+        <div className="overflow-hidden rounded-xl border border-outline-variant/60 bg-card shadow-[var(--shadow-clinical)]">
+          <div className="flex flex-col md:flex-row">
+            <div
+              id="student-photo"
+              className="scroll-mt-24 border-outline-variant/60 p-5 md:w-1/3 md:border-r"
+            >
+              <h2 className="mb-3 border-l-2 border-accent pl-2 font-semibold text-on-surface">
+                Photo
+              </h2>
               <StudentPhotoPanel
                 currentUrl={defaults.photoUrl}
                 saveState={saveState}
@@ -265,7 +347,10 @@ export function StudentForm({
             </div>
 
             <div className="space-y-6 p-5 md:w-2/3">
-              <h2 className="mb-2 border-l-2 border-accent pl-2 font-semibold text-on-surface">
+              <h2
+                id="student-profile"
+                className="mb-2 scroll-mt-24 border-l-2 border-accent pl-2 font-semibold text-on-surface"
+              >
                 Profile Information
               </h2>
 
@@ -330,7 +415,7 @@ export function StudentForm({
               </div>
 
               {/* Periodic Examinations */}
-              <div>
+              <div id="student-quizzes" className="scroll-mt-24">
                 <h2 className="mb-1 border-l-2 border-accent pl-2 font-semibold text-on-surface">
                   Periodic Examinations
                 </h2>
@@ -436,7 +521,7 @@ export function StudentForm({
               </div>
 
               {/* Final & Practical Examinations */}
-              <div>
+              <div id="student-practicals" className="scroll-mt-24">
                 <h2 className="mb-1 border-l-2 border-accent pl-2 font-semibold text-on-surface">
                   Final &amp; Practical Examinations
                 </h2>

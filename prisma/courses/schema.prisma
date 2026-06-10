@@ -1,0 +1,302 @@
+// Asclepius LMS — Courses database (separate MongoDB cluster: COURSES_URL).
+// Continuing-education for active graduates. Modeled on Canvas LMS, scaled to
+// an EMT CE portal: courses → modules → polymorphic items (page/video/file/
+// link/quiz), per-item completion requirements, sequential/prerequisite
+// unlocking, auto-graded quizzes, and quiz-gated CE certificates.
+//
+// Cross-database references are SOFT strings (Prisma has no cross-datasource
+// relations): `graduateLcn` points at a Graduate.lcn in the main DB, and
+// `createdBy` at a User.id. They are never enforced here.
+//
+// Canvas's core lifecycle pattern is adopted everywhere: nothing is hard
+// deleted in normal operation — entities carry a workflow `state`
+// (UNPUBLISHED / PUBLISHED / DELETED) so authoring and soft-delete are uniform.
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../../src/generated/courses"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("COURSES_URL")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Enums
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Publishable, soft-deletable lifecycle (Canvas `workflow_state`).
+enum ContentState {
+  UNPUBLISHED // authored but not visible to graduates
+  PUBLISHED // live
+  DELETED // soft-deleted; hidden everywhere, retained for integrity
+}
+
+enum CourseState {
+  UNPUBLISHED
+  PUBLISHED
+  ARCHIVED // retired: visible to enrolled-completed for review, closed to new enrollment
+  DELETED
+}
+
+enum ItemType {
+  PAGE // rich/markdown content (Page)
+  VIDEO // embedded video by URL
+  FILE // downloadable asset by URL (Vercel Blob)
+  EXTERNAL_URL // outbound link
+  QUIZ // graded quiz (Quiz)
+}
+
+// What a graduate must do to complete a module item (Canvas completion reqs).
+enum CompletionRequirement {
+  NONE // informational; never blocks
+  MUST_VIEW // open the item
+  MUST_MARK_DONE // explicitly mark done
+  MUST_PASS // pass the quiz at >= minScore (QUIZ items only)
+}
+
+// Whether a module is complete when ALL its requirements are met or just ONE.
+enum RequirementCount {
+  ALL
+  ONE
+}
+
+enum QuestionType {
+  MULTIPLE_CHOICE // one correct option
+  MULTIPLE_ANSWER // several correct options (all-or-nothing scoring)
+  TRUE_FALSE
+  SHORT_ANSWER // text match (case-insensitive, trimmed)
+}
+
+enum EnrollmentState {
+  ACTIVE
+  COMPLETED
+  INACTIVE // dropped / revoked
+}
+
+enum ModuleProgressState {
+  LOCKED // prerequisites/unlock-date not met
+  UNLOCKED // available, not yet started
+  STARTED // at least one requirement met
+  COMPLETED // all/one requirement(s) met per RequirementCount
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Authoring structure
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Course {
+  id          String      @id @default(auto()) @map("_id") @db.ObjectId
+  slug        String      @unique
+  title       String
+  summary     String? // one-line card blurb
+  description String? // rich HTML overview (TipTap)
+  coverImage  String? // Blob URL
+  state       CourseState @default(UNPUBLISHED)
+
+  // Certificate / completion policy.
+  certificateEnabled Boolean @default(true)
+  estimatedMins      Int? // author-declared total time
+
+  createdBy String? // main-DB User.id (soft ref)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  modules     Module[]
+  pages       Page[]
+  quizzes     Quiz[]
+  enrollments Enrollment[]
+
+  @@index([state])
+  @@map("course")
+}
+
+model Module {
+  id       String @id @default(auto()) @map("_id") @db.ObjectId
+  courseId String @db.ObjectId
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  title    String
+  position Int          @default(0)
+  state    ContentState @default(UNPUBLISHED)
+
+  // Unlocking (Canvas prerequisites + sequential progress).
+  requireSequentialProgress Boolean          @default(false)
+  prerequisiteModuleIds     String[]          @db.ObjectId // other Module.ids in this course
+  requirementCount          RequirementCount @default(ALL)
+  unlockAt                  DateTime? // optional time gate
+
+  items         ModuleItem[]
+  progressions  ModuleProgression[]
+
+  @@index([courseId])
+  @@map("course_module")
+}
+
+// The polymorphic glue (Canvas ContentTag): an ordered module entry that points
+// at a Page or Quiz (contentId) or carries an external/file/video `url`.
+model ModuleItem {
+  id       String @id @default(auto()) @map("_id") @db.ObjectId
+  moduleId String @db.ObjectId
+  module   Module @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  courseId String @db.ObjectId // denormalized for course-wide queries
+
+  title    String
+  type     ItemType
+  position Int          @default(0)
+  indent   Int          @default(0) // visual nesting in the outline
+  state    ContentState @default(UNPUBLISHED)
+
+  contentId String? @db.ObjectId // Page.id or Quiz.id when type is PAGE/QUIZ
+  url       String? // VIDEO / FILE / EXTERNAL_URL targets
+
+  completionRequirement CompletionRequirement @default(MUST_VIEW)
+  minScore              Float? // MUST_PASS threshold override (else Quiz.passingScore)
+  estimatedMins         Int?
+
+  progress ItemProgress[]
+
+  @@index([moduleId])
+  @@index([courseId])
+  @@map("course_module_item")
+}
+
+model Page {
+  id       String       @id @default(auto()) @map("_id") @db.ObjectId
+  courseId String       @db.ObjectId
+  course   Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  title    String
+  body     String // rich HTML (TipTap)
+  state    ContentState @default(UNPUBLISHED)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([courseId])
+  @@map("course_page")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Assessment
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Quiz {
+  id       String       @id @default(auto()) @map("_id") @db.ObjectId
+  courseId String       @db.ObjectId
+  course   Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  title    String
+  description String?
+  state    ContentState @default(UNPUBLISHED)
+
+  passingScore   Float   @default(70) // percent (0–100)
+  allowedAttempts Int    @default(-1) // -1 = unlimited
+  shuffle        Boolean @default(false)
+  timeLimitMins  Int? // null = untimed
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  questions   Question[]
+  submissions QuizSubmission[]
+
+  @@index([courseId])
+  @@map("course_quiz")
+}
+
+model Question {
+  id     String       @id @default(auto()) @map("_id") @db.ObjectId
+  quizId String       @db.ObjectId
+  quiz   Quiz         @relation(fields: [quizId], references: [id], onDelete: Cascade)
+
+  type     QuestionType @default(MULTIPLE_CHOICE)
+  prompt   String // rich HTML
+  points   Float        @default(1)
+  position Int          @default(0)
+  feedback String? // shown after grading
+
+  // options: [{ id: string, text: string, correct: boolean }]
+  // SHORT_ANSWER stores accepted answers in `correctAnswers` instead.
+  options        Json?
+  correctAnswers String[] @default([])
+
+  @@index([quizId])
+  @@map("course_question")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Enrollment & progress (per graduate)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Enrollment {
+  id          String          @id @default(auto()) @map("_id") @db.ObjectId
+  courseId    String          @db.ObjectId
+  course      Course          @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  graduateLcn String // main-DB Graduate.lcn (soft ref)
+
+  state         EnrollmentState @default(ACTIVE)
+  enrolledAt    DateTime        @default(now())
+  completedAt   DateTime?
+  certificateNo String? // CE certificate number, set on completion
+  finalScore    Float? // average quiz score at completion (percent)
+
+  itemProgress ItemProgress[]
+  moduleProg   ModuleProgression[]
+  submissions  QuizSubmission[]
+
+  @@unique([graduateLcn, courseId])
+  @@index([graduateLcn])
+  @@map("course_enrollment")
+}
+
+model ItemProgress {
+  id           String     @id @default(auto()) @map("_id") @db.ObjectId
+  enrollmentId String     @db.ObjectId
+  enrollment   Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  moduleItemId String     @db.ObjectId
+  moduleItem   ModuleItem @relation(fields: [moduleItemId], references: [id], onDelete: Cascade)
+
+  viewedAt    DateTime? // set on first view
+  completedAt DateTime? // set when the item's requirement is satisfied
+  bestScore   Float? // best quiz percent for MUST_PASS items
+
+  @@unique([enrollmentId, moduleItemId])
+  @@index([enrollmentId])
+  @@map("course_item_progress")
+}
+
+model ModuleProgression {
+  id           String     @id @default(auto()) @map("_id") @db.ObjectId
+  enrollmentId String     @db.ObjectId
+  enrollment   Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  moduleId     String     @db.ObjectId
+  module       Module     @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
+  state          ModuleProgressState @default(LOCKED)
+  completedAt    DateTime?
+  updatedAt      DateTime            @updatedAt
+
+  @@unique([enrollmentId, moduleId])
+  @@index([enrollmentId])
+  @@map("course_module_progression")
+}
+
+model QuizSubmission {
+  id           String     @id @default(auto()) @map("_id") @db.ObjectId
+  enrollmentId String     @db.ObjectId
+  enrollment   Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  quizId       String     @db.ObjectId
+  quiz         Quiz       @relation(fields: [quizId], references: [id], onDelete: Cascade)
+
+  attempt        Int      @default(1)
+  answers        Json // { [questionId]: string | string[] }
+  pointsEarned   Float    @default(0)
+  pointsPossible Float    @default(0)
+  score          Float    @default(0) // percent (0–100)
+  passed         Boolean  @default(false)
+  startedAt      DateTime @default(now())
+  submittedAt    DateTime?
+
+  @@index([enrollmentId, quizId])
+  @@map("course_quiz_submission")
+}
