@@ -17,19 +17,22 @@ type Existing = {
 
 export function PortalTestimonialForm({ existing }: { existing: Existing }) {
   const [state, action, pending] = useActionState(submitTestimonial, {});
-  const [rating, setRating] = useState(5);
+  const [rating, setRating] = useState(existing?.rating ?? 5);
+  const [editing, setEditing] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
     if (state.ok) {
       toast.success("Thanks! Your testimonial was sent for review.");
+      setEditing(false);
       router.refresh();
     }
     if (state.error) toast.error(state.error);
   }, [state, router]);
 
-  // Already submitted (pending or published) — show status instead of the form.
-  if (existing) {
+  // Already submitted (pending or published) — show status with an edit
+  // affordance. One testimonial per graduate; editing returns it to review.
+  if (existing && !editing) {
     return (
       <Card>
         <CardHeader>
@@ -46,15 +49,34 @@ export function PortalTestimonialForm({ existing }: { existing: Existing }) {
             ))}
           </div>
           <p className="text-sm text-on-surface">“{existing.quote}”</p>
-          <span
-            className={`inline-flex w-fit rounded-full px-2 py-0.5 text-xs font-semibold ${
-              existing.approved
-                ? "bg-success/15 text-success"
-                : "bg-warning/15 text-warning"
-            }`}
-          >
-            {existing.approved ? "Published on homepage" : "Awaiting review"}
-          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className={`inline-flex w-fit rounded-full px-2 py-0.5 text-xs font-semibold ${
+                existing.approved
+                  ? "bg-success/15 text-success"
+                  : "bg-warning/15 text-warning"
+              }`}
+            >
+              {existing.approved ? "Published on homepage" : "Awaiting review"}
+            </span>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setRating(existing.rating);
+                setEditing(true);
+              }}
+            >
+              Edit
+            </Button>
+          </div>
+          {existing.approved && (
+            <p className="text-xs text-on-surface-variant">
+              Editing sends it back for review — it leaves the homepage until
+              re-approved.
+            </p>
+          )}
         </CardContent>
       </Card>
     );
@@ -94,12 +116,24 @@ export function PortalTestimonialForm({ existing }: { existing: Existing }) {
             rows={4}
             maxLength={600}
             required
+            defaultValue={editing ? (existing?.quote ?? "") : ""}
             placeholder="The instructors really prepared me for the field…"
             className="w-full rounded border border-outline-variant bg-card px-3 py-2 text-sm text-on-surface focus:border-accent focus:outline-none"
           />
-          <Button type="submit" disabled={pending}>
-            {pending ? "Sending…" : "Submit for review"}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button type="submit" disabled={pending}>
+              {pending ? "Sending…" : "Submit for review"}
+            </Button>
+            {editing && (
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setEditing(false)}
+              >
+                Cancel
+              </Button>
+            )}
+          </div>
         </form>
       </CardContent>
     </Card>

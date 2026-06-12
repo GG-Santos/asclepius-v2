@@ -523,6 +523,23 @@ export async function updateQuiz(
     PUBLISH_STATES,
     "UNPUBLISHED",
   );
+
+  // Bank draw link: both-or-nothing. A link without a draw count does
+  // nothing in the portal, so it is normalized away.
+  let bankId: string | null = str(formData, "bankId") || null;
+  const drawRaw = intOrNull(formData, "bankDrawCount");
+  let bankDrawCount = drawRaw && drawRaw > 0 ? drawRaw : null;
+  if (bankId) {
+    const bank = await coursesPrisma.questionBank.findUnique({
+      where: { id: bankId },
+    });
+    if (!bank) bankId = null;
+  }
+  if (!bankId || !bankDrawCount) {
+    bankId = null;
+    bankDrawCount = null;
+  }
+
   await coursesPrisma.quiz.update({
     where: { id },
     data: {
@@ -532,6 +549,8 @@ export async function updateQuiz(
       allowedAttempts: intOrNull(formData, "allowedAttempts") ?? -1,
       shuffle: formData.get("shuffle") === "on",
       timeLimitMins: intOrNull(formData, "timeLimitMins"),
+      bankId,
+      bankDrawCount,
       state,
     },
   });
@@ -606,6 +625,163 @@ export async function deleteQuestion(formData: FormData): Promise<void> {
     await coursesPrisma.question.delete({ where: { id } });
     revalidatePath(`/dashboard/courses/${courseId}/quizzes/${quizId}`);
   }
+}
+
+// ── Question banks ───────────────────────────────────────────────────────────
+// Shared pools quizzes pull from by snapshot copy or per-attempt random draw.
+
+export async function createBank(
+  _prev: CourseActionState,
+  formData: FormData,
+): Promise<CourseActionState> {
+  const session = await requireAdmin();
+  const title = str(formData, "title");
+  if (!title) return { error: "Title is required." };
+  const bank = await coursesPrisma.questionBank.create({
+    data: {
+      title,
+      description: str(formData, "description") || null,
+      createdBy: session.user.id,
+    },
+  });
+  revalidatePath("/dashboard/courses/banks");
+  redirect(`/dashboard/courses/banks/${bank.id}`);
+}
+
+export async function updateBank(
+  _prev: CourseActionState,
+  formData: FormData,
+): Promise<CourseActionState> {
+  await requireAdmin();
+  const id = str(formData, "id");
+  const title = str(formData, "title");
+  if (!id) return { error: "Missing bank." };
+  if (!title) return { error: "Title is required." };
+  await coursesPrisma.questionBank.update({
+    where: { id },
+    data: { title, description: str(formData, "description") || null },
+  });
+  revalidatePath(`/dashboard/courses/banks/${id}`);
+  revalidatePath("/dashboard/courses/banks");
+  return { ok: true };
+}
+
+export async function deleteBank(formData: FormData): Promise<void> {
+  await requireAdmin();
+  const id = str(formData, "id");
+  if (id) {
+    // Unlink dependent quizzes first so portal attempts degrade cleanly to
+    // fixed-questions-only; past submissions keep their recorded scores.
+    await coursesPrisma.quiz.updateMany({
+      where: { bankId: id },
+      data: { bankId: null, bankDrawCount: null },
+    });
+    await coursesPrisma.questionBank.delete({ where: { id } });
+    revalidatePath("/dashboard/courses/banks");
+  }
+  redirect("/dashboard/courses/banks");
+}
+
+export async function saveBankQuestion(formData: FormData): Promise<void> {
+  await requireAdmin();
+  const bankId = str(formData, "bankId");
+  const id = str(formData, "id"); // empty when creating
+  if (!bankId) return;
+  const type = enumOf<QuestionType>(
+    formData,
+    "type",
+    QUESTION_TYPES,
+    "MULTIPLE_CHOICE",
+  );
+
+  const texts = formData.getAll("optionText").map((v) => String(v).trim());
+  const correctIdx = new Set(
+    formData.getAll("optionCorrect").map((v) => String(v)),
+  );
+  const options = texts
+    .map((text, i) => ({
+      id: `o${i}`,
+      text,
+      correct: correctIdx.has(String(i)),
+    }))
+    .filter((o) => o.text);
+  const correctAnswers = str(formData, "correctAnswers")
+    .split("\n")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const data = {
+    type,
+    prompt: String(formData.get("prompt") ?? "").trim(),
+    points: floatOrNull(formData, "points") ?? 1,
+    feedback: str(formData, "feedback") || null,
+    options: type === "SHORT_ANSWER" ? undefined : options,
+    correctAnswers: type === "SHORT_ANSWER" ? correctAnswers : [],
+  };
+
+  if (id) {
+    await coursesPrisma.bankQuestion.update({ where: { id }, data });
+  } else {
+    const position = await coursesPrisma.bankQuestion.count({
+      where: { bankId },
+    });
+    await coursesPrisma.bankQuestion.create({
+      data: { bankId, position, ...data },
+    });
+  }
+  revalidatePath(`/dashboard/courses/banks/${bankId}`);
+}
+
+export async function deleteBankQuestion(formData: FormData): Promise<void> {
+  await requireAdmin();
+  const id = str(formData, "id");
+  const bankId = str(formData, "bankId");
+  if (id) {
+    await coursesPrisma.bankQuestion.delete({ where: { id } });
+    revalidatePath(`/dashboard/courses/banks/${bankId}`);
+  }
+}
+
+/**
+ * Snapshot-copy selected bank questions into a quiz. Copies are independent
+ * Question rows — later bank edits never alter the quiz.
+ */
+export async function copyBankQuestions(
+  _prev: CourseActionState,
+  formData: FormData,
+): Promise<CourseActionState> {
+  await requireAdmin();
+  const quizId = str(formData, "quizId");
+  const courseId = str(formData, "courseId");
+  const ids = formData
+    .getAll("qid")
+    .map((v) => String(v))
+    .filter(Boolean);
+  if (!quizId) return { error: "Missing quiz." };
+  if (ids.length === 0) return { error: "Select at least one question." };
+
+  const source = await coursesPrisma.bankQuestion.findMany({
+    where: { id: { in: ids } },
+    orderBy: { position: "asc" },
+  });
+  if (source.length === 0) return { error: "Those questions no longer exist." };
+
+  const offset = await coursesPrisma.question.count({ where: { quizId } });
+  await coursesPrisma.question.createMany({
+    data: source.map((q, i) => ({
+      quizId,
+      position: offset + i,
+      type: q.type,
+      prompt: q.prompt,
+      points: q.points,
+      feedback: q.feedback,
+      options: q.options ?? undefined,
+      correctAnswers: q.correctAnswers,
+    })),
+  });
+
+  revalidatePath(`/dashboard/courses/${courseId}/quizzes/${quizId}`);
+  return { ok: true };
 }
 
 // ── Enrollment management (admin) ────────────────────────────────────────────

@@ -2,18 +2,16 @@
 
 import { revalidatePath } from "next/cache";
 import { uploadImage } from "@/lib/blob";
+import { rollupForBatch } from "@/lib/grading";
 import { composeName, isLegacyBatch } from "@/lib/graduate";
+import { getExpiryPolicy } from "@/lib/org-settings";
 import { prisma } from "@/lib/prisma";
 import {
   canProfessorEditBatch,
   requireAdmin,
   requireUser,
 } from "@/lib/session";
-import {
-  buildEnrollmentNo,
-  buildLcn,
-  rollupGraduateScores,
-} from "@/lib/student";
+import { buildEnrollmentNo, buildLcn, isPromotable } from "@/lib/student";
 import { studentInputSchema } from "@/lib/validation";
 
 export type StudentActionState = {
@@ -73,20 +71,34 @@ function fieldErrorsOf(error: {
   return fe;
 }
 
-function buildStudentData(input: ReturnType<typeof studentInputSchema.parse>) {
-  const granularGrades = {
-    q1: input.q1 ?? null,
-    q2: input.q2 ?? null,
-    q3: input.q3 ?? null,
-    q4: input.q4 ?? null,
-    q5: input.q5 ?? null,
-    q6: input.q6 ?? null,
-    q7: input.q7 ?? null,
-    q8: input.q8 ?? null,
-    q9: input.q9 ?? null,
-    q10: input.q10 ?? null,
-  };
+function buildStudentData(
+  input: ReturnType<typeof studentInputSchema.parse>,
+  formData: FormData,
+) {
+  // Grade inputs: legacy positional qN keys, OR scheme component keys posted
+  // with a "comp:" prefix (R2/R8) — read dynamically either way.
+  const granularGrades: Record<string, number | null> = {};
+  for (const [key, value] of formData.entries()) {
+    const compMatch = /^comp:([a-z][a-z0-9-]*)$/.exec(key);
+    const gradeKey = compMatch?.[1] ?? (/^q\d+$/.test(key) ? key : null);
+    if (!gradeKey) continue;
+    const s = String(value).trim();
+    if (s === "") {
+      granularGrades[gradeKey] = null;
+    } else {
+      const n = Number(s);
+      granularGrades[gradeKey] = Number.isFinite(n) ? n : null;
+    }
+  }
+  // Bonus (R6): empty clears.
+  const bonusRaw = String(formData.get("bonusPoints") ?? "").trim();
+  const bonusN = Number(bonusRaw);
+  const bonusPoints =
+    bonusRaw !== "" && Number.isFinite(bonusN) ? bonusN : null;
+  const bonusNote = String(formData.get("bonusNote") ?? "").trim() || null;
   return {
+    bonusPoints,
+    bonusNote,
     name: composeName(input),
     firstName: input.firstName,
     middleName: input.middleName ?? null,
@@ -121,7 +133,7 @@ export async function createStudent(
 
   await prisma.student.create({
     data: {
-      ...buildStudentData(parsed.data),
+      ...buildStudentData(parsed.data, formData),
       enrollmentNo,
       batchId,
       batchCode,
@@ -180,7 +192,7 @@ export async function updateStudent(
   await prisma.student.update({
     where: { id },
     data: {
-      ...buildStudentData(parsed.data),
+      ...buildStudentData(parsed.data, formData),
       batchId,
       batchCode,
       ...(photoId ? { photoId } : {}),
@@ -221,6 +233,7 @@ async function recomputeBatchRankings(batchCode?: string | null) {
       scorePAS: true,
       scoreCCST: true,
       scoreCCSM: true,
+      bonusPoints: true,
     },
   });
   const totals = rows.map((g) => ({
@@ -253,10 +266,17 @@ export async function promoteStudent(
   const id = String(formData.get("id") ?? "");
   if (!id) return { error: "Missing student." };
 
-  const student = await prisma.student.findUnique({ where: { id } });
+  const student = await prisma.student.findUnique({
+    where: { id },
+    include: { batch: { select: { quizDefs: true, gradingScheme: true } } },
+  });
   if (!student) return { error: "Student not found." };
   if (student.status === "GRADUATED") {
     return { error: "This student has already graduated." };
+  }
+  // R13: only IN_TRAINING students may be promoted — FAILED never graduates.
+  if (!isPromotable(student.status)) {
+    return { error: "Only in-training students can be promoted." };
   }
   if (!student.batchCode) {
     return { error: "Assign a batch before graduating (the LCN needs it)." };
@@ -274,10 +294,14 @@ export async function promoteStudent(
     lcn = buildLcn(student.batchCode, now, bump);
   }
 
-  const scores = rollupGraduateScores(student);
+  // The stored six follow the batch's scheme (or quiz definitions) — R9.
+  const scores = rollupForBatch(student, student.batch);
   const issuedAt = now;
+  // Default validity comes from the org expiry policy; remains editable on
+  // the graduate record afterwards.
+  const { licenseValidityYears } = await getExpiryPolicy();
   const expiresAt = new Date(now);
-  expiresAt.setFullYear(expiresAt.getFullYear() + 1); // 1-year default; editable
+  expiresAt.setFullYear(expiresAt.getFullYear() + licenseValidityYears);
 
   await prisma.graduate.create({
     data: {
@@ -320,4 +344,33 @@ export async function promoteStudent(
   revalidatePath("/dashboard/students");
   revalidatePath("/dashboard/graduates");
   return { ok: true, promotedLcn: lcn };
+}
+
+/**
+ * R13: mark a student FAILED (leaves the default list, never promotable) or
+ * restore them to IN_TRAINING in their original batch. Admin only.
+ */
+export async function setStudentFailed(
+  formData: FormData,
+): Promise<StudentActionState> {
+  await requireAdmin();
+  const id = String(formData.get("id") ?? "");
+  const failed = String(formData.get("failed") ?? "") === "true";
+  if (!id) return { error: "Missing student." };
+
+  const student = await prisma.student.findUnique({ where: { id } });
+  if (!student) return { error: "Student not found." };
+  if (student.status === "GRADUATED") {
+    return { error: "Graduated students can't be marked failed." };
+  }
+  if (failed && student.status === "FAILED") return { ok: true };
+  if (!failed && student.status !== "FAILED") return { ok: true };
+
+  await prisma.student.update({
+    where: { id },
+    data: { status: failed ? "FAILED" : "IN_TRAINING" },
+  });
+  revalidatePath("/dashboard/students");
+  revalidatePath(`/dashboard/students/${id}`);
+  return { ok: true };
 }

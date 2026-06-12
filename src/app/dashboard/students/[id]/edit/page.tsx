@@ -6,9 +6,11 @@ import {
   type StudentDefaults,
   StudentForm,
 } from "@/components/dashboard/student-form";
+import { parseGradingScheme, parseSchemeScores } from "@/lib/assessment-scheme";
+import { quizDefsByBatch, schemesByBatch } from "@/lib/batch-quiz";
 import { prisma } from "@/lib/prisma";
 import { canProfessorEditBatch, requireUser } from "@/lib/session";
-import { parseGranularGrades } from "@/lib/student-grades";
+import { parseGranularGrades, quizDefsFor } from "@/lib/student-grades";
 
 function numToStr(n: number | null | undefined): string | undefined {
   return n === null || n === undefined ? undefined : String(n);
@@ -24,7 +26,10 @@ export default async function EditStudentPage({
 
   const s = await prisma.student.findUnique({
     where: { id },
-    include: { photo: true },
+    include: {
+      photo: true,
+      batch: { select: { quizDefs: true, gradingScheme: true } },
+    },
   });
   if (!s) notFound();
 
@@ -40,7 +45,24 @@ export default async function EditStudentPage({
     redirect("/dashboard?denied=area");
   }
 
-  const grades = parseGranularGrades(s.granularGrades);
+  const defs = quizDefsFor(s.batch?.quizDefs);
+  const grades = parseGranularGrades(s.granularGrades, defs);
+  const quizGrades: Record<string, string> = {};
+  for (const def of defs) {
+    const v = numToStr(grades[def.key]);
+    if (v !== undefined) quizGrades[def.key] = v;
+  }
+
+  // Scheme batches: component-keyed entry values (R2/R8).
+  const scheme = parseGradingScheme(s.batch?.gradingScheme);
+  const schemeGrades: Record<string, string> = {};
+  if (scheme) {
+    const compScores = parseSchemeScores(s.granularGrades, scheme);
+    for (const c of scheme.components) {
+      const v = numToStr(compScores[c.key]);
+      if (v !== undefined) schemeGrades[c.key] = v;
+    }
+  }
 
   const defaults: StudentDefaults = {
     enrollmentNo: s.enrollmentNo,
@@ -49,16 +71,10 @@ export default async function EditStudentPage({
     lastName: s.lastName ?? undefined,
     suffix: s.suffix ?? undefined,
     batchCode: s.batchCode ?? undefined,
-    q1: numToStr(grades.q1),
-    q2: numToStr(grades.q2),
-    q3: numToStr(grades.q3),
-    q4: numToStr(grades.q4),
-    q5: numToStr(grades.q5),
-    q6: numToStr(grades.q6),
-    q7: numToStr(grades.q7),
-    q8: numToStr(grades.q8),
-    q9: numToStr(grades.q9),
-    q10: numToStr(grades.q10),
+    quizGrades,
+    schemeGrades,
+    bonusPoints: numToStr(s.bonusPoints),
+    bonusNote: s.bonusNote ?? undefined,
     scoreFWE: numToStr(s.scoreFWE),
     scoreEP: numToStr(s.scoreEP),
     scorePAS: numToStr(s.scorePAS),
@@ -83,6 +99,8 @@ export default async function EditStudentPage({
         submitLabel="Update Student"
         successMessage="Student updated."
         studentId={s.id}
+        quizDefsByBatch={await quizDefsByBatch()}
+        schemesByBatch={await schemesByBatch()}
       />
     </div>
   );

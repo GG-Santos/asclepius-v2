@@ -1,0 +1,61 @@
+---
+title: Graduate Registry
+description: Find, inspect, and maintain public credential records.
+---
+
+Last reviewed: 2026-06-12.
+
+The graduate registry owns public credential truth. It controls the public
+profile, LCN, verification state, expiry, card, certificate, QR link, ranking,
+renewal history, and portal account link.
+
+<OpenRoute href="/dashboard/graduates">Open Graduates</OpenRoute>
+
+## List View
+
+| Control | Use |
+| --- | --- |
+| Graduates tab | Default active credential records. |
+| Archived tab | Records hidden from public verification but retained in admin history. |
+| All tab | All graduate registry records loaded together. |
+| Search | Search by name, LCN, batch, or professor. |
+| Status filter | Verified, Expired, or Archived state. |
+| Recertified | Opens the renewed-ID export view. |
+| New record | Adds a direct historical or manual graduate record. |
+
+## Row Actions
+
+| Action | What it does |
+| --- | --- |
+| Renew | Extends an active graduate license by the org validity policy. |
+| View record | Opens graduate detail, artifacts, public credential, and portal account manager. |
+| Edit | Opens the public credential edit form. |
+| Archive or Restore | Moves the record out of or back into public verification. |
+| Delete | Permanently deletes the graduate record and public verification page. |
+
+## Detail Page
+
+Open a record before making public-facing changes. The detail page shows the
+credential summary, status, dates, scores, artifacts, public credential button,
+renewal action, archive action, delete action, and graduate portal account
+manager.
+
+<OpenRoute href="/dashboard/graduates/recertified">Open Recertified</OpenRoute>
+
+## Statuses
+
+<StatusReferenceTable />
+
+## Troubleshooting
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| Public verification says not found | Wrong LCN or archived/deleted record. | Search Graduates by exact LCN and inspect status. |
+| Record appears missing | You are on Graduates instead of Archived or All. | Switch the status tab or search by exact LCN. |
+| Rank is blank | Legacy or ungraded record. | Confirm the score source before adding scores. |
+| Graduate cannot access portal | Account is missing, linked to wrong LCN, locked, or credential state blocks access. | Use the Graduate portal account manager on the detail page. |
+
+<DocNote title="Registry is not Courses" tone="info">
+Course enrollment can reference graduate records, but credential validity,
+expiry, renewal, artifacts, and public verification live in Registry.
+</DocNote>

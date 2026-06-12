@@ -4,14 +4,14 @@ import { notFound } from "next/navigation";
 import { updatePost } from "@/app/dashboard/blog/actions";
 import { BlogForm } from "@/components/dashboard/blog-form";
 import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/session";
+import { requireAdmin } from "@/lib/session";
 
 export default async function EditPostPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireUser();
+  await requireAdmin();
   const { id } = await params;
 
   const post = await prisma.blogPost.findUnique({ where: { id } });

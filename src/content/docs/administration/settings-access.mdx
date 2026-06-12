@@ -1,0 +1,93 @@
+---
+title: Settings and access
+description: Manage roles, expiry policy, artifact templates, and account settings.
+---
+
+Last reviewed: 2026-06-12.
+
+Settings are operational controls. Change one thing at a time and verify the
+surface it affects.
+
+## Staff access
+
+| Role | Intended user | Access summary |
+| --- | --- | --- |
+| Admin | Operations owner or trusted manager. | Full dashboard, wiki, registry, courses, content, staff, and settings. |
+| Professor | Instructor assigned to active cohorts. | Limited dashboard access for assigned in-training batches. |
+| Graduate | Certified EMT using the portal. | Portal access tied to one graduate LCN. |
+
+## Staff workflow
+
+<OpenRoute href="/dashboard/staff">Open Staff</OpenRoute>
+
+1. Open Staff.
+2. Use "Add staff" for new admin or professor accounts.
+3. For existing accounts, edit Name, Email, and Role from the staff table.
+4. Use password reset only for the intended account.
+5. Do not change your own role as a workaround for access testing.
+
+## Expiry policy
+
+<OpenRoute href="/dashboard/settings/expiry">Open Expiry Policy</OpenRoute>
+
+| Field | Meaning |
+| --- | --- |
+| License validity (years) | Default duration added to graduation or renewal dates. |
+| Auto-archive grace (years) | How long an expired graduate can remain before automatic archiving. |
+
+After saving, open a graduate record and a public verification page to confirm
+the dates and state labels behave as expected.
+
+## Artifact templates
+
+<OpenRoute href="/dashboard/settings/templates">Open Templates</OpenRoute>
+
+The page has Certificate, ID - front, and ID - back tabs. Each template can
+change text, record text colors, artwork layers, and the live sample preview.
+
+Review every template change against:
+
+- Public wording and center name.
+- Signature text and visual placement.
+- Date and renewal language.
+- Long graduate names.
+- Card and certificate text fit.
+
+## Change workflow
+
+<Steps>
+
+<Step>
+
+### Confirm the reason
+
+Before changing expiry, templates, or staff roles, write down the reason in the
+ticket, message, or operational note.
+
+</Step>
+
+<Step>
+
+### Make one change
+
+Change one policy or template at a time. This makes it easier to identify the
+cause if artifacts, access, or portal behavior changes.
+
+</Step>
+
+<Step>
+
+### Verify the affected surface
+
+For expiry changes, inspect a graduate record. For template changes, preview
+license cards and certificates. For role changes, confirm the account lands in
+the expected dashboard or portal area.
+
+</Step>
+
+</Steps>
+
+<DocNote title="Access follows least privilege" tone="info">
+If someone only teaches a cohort, use professor. If someone only needs their own
+records and courses, use graduate. Reserve admin for operations owners.
+</DocNote>

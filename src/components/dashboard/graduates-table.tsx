@@ -169,9 +169,13 @@ export function GraduatesTable({
                   {g.batchCode ?? "—"}
                 </td>
                 <td className="tabular px-3 py-2 text-on-surface-variant">
-                  {g.rank != null
-                    ? `${medalFor(g.rank) ?? ""} #${g.rank}`
-                    : "—"}
+                  {g.legacy ? (
+                    <Badge variant="legacy">Legacy</Badge>
+                  ) : g.rank != null ? (
+                    `${medalFor(g.rank) ?? ""} #${g.rank}`
+                  ) : (
+                    "—"
+                  )}
                 </td>
                 <td className="px-3 py-2">
                   <Badge variant={badge.variant}>{badge.label}</Badge>

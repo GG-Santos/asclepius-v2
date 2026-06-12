@@ -3,7 +3,9 @@ import { prismaAdapter } from "better-auth/adapters/prisma";
 import { nextCookies } from "better-auth/next-js";
 import { prisma } from "@/lib/prisma";
 
-export type Role = "admin" | "writer" | "professor" | "graduate";
+// "writer" was removed 2026-06: legacy writer accounts are denied dashboard
+// access until an admin reassigns them (admin | professor | graduate).
+export type Role = "admin" | "professor" | "graduate";
 
 export const auth = betterAuth({
   appName: "Asclepius",
@@ -20,7 +22,7 @@ export const auth = betterAuth({
       role: {
         type: "string",
         required: false,
-        defaultValue: "writer",
+        defaultValue: "graduate",
         // Never let a client set its own role on any auth call.
         input: false,
       },

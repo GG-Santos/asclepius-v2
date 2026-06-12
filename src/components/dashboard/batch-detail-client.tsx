@@ -119,6 +119,8 @@ export function BatchDetailClient({
   inTraining,
   graduates,
   summary,
+  failedStudents = [],
+  mode = "view",
 }: {
   batch: BatchData;
   professors: { id: string; name: string }[];
@@ -127,6 +129,10 @@ export function BatchDetailClient({
   inTraining: InTrainingMember[];
   graduates: GraduateMember[];
   summary: BatchGrades;
+  /** Students who completed training but did not pass (view mode roster). */
+  failedStudents?: InTrainingMember[];
+  /** "view" shows the rosters; "edit" shows admin settings + graduation. */
+  mode?: "view" | "edit";
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -190,7 +196,7 @@ export function BatchDetailClient({
         )}
       </div>
 
-      {!canManage && (
+      {mode === "view" && !canManage && (
         <p className="rounded-lg border border-outline-variant/60 bg-surface-low px-4 py-2.5 text-sm text-on-surface-variant">
           You&apos;re viewing this batch as its professor. Settings and
           graduation are handled by an administrator.
@@ -198,7 +204,7 @@ export function BatchDetailClient({
       )}
 
       {/* Professor: request graduation review (admin approves) */}
-      {!canManage && !batch.graduated && (
+      {mode === "view" && !canManage && !batch.graduated && (
         <section className="rounded-xl border border-outline-variant/60 bg-card p-5 shadow-[var(--shadow-clinical)]">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -224,9 +230,12 @@ export function BatchDetailClient({
         </section>
       )}
 
-      {/* Batch settings — admin only */}
-      {canManage && (
+      {/* Batch settings — admin only (edit page) */}
+      {mode === "edit" && canManage && (
         <section className="overflow-hidden rounded-xl border border-outline-variant/60 bg-card shadow-[var(--shadow-clinical)]">
+          <h2 className="border-b border-outline-variant/40 px-5 pt-4 pb-3 text-base font-semibold text-on-surface">
+            Batch settings
+          </h2>
           <form
             onSubmit={handleSubmit}
             className="flex flex-col gap-6 p-5 md:flex-row"
@@ -302,67 +311,70 @@ export function BatchDetailClient({
         </section>
       )}
 
-      {/* Graduation — admin only */}
-      {canManage && !batch.graduated && inTraining.length > 0 && (
-        <section className="rounded-xl border border-outline-variant/60 bg-card p-5 shadow-[var(--shadow-clinical)]">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="text-base font-semibold text-on-surface">
-                Projected graduation
-              </h2>
-              <p className="mt-1 text-sm text-on-surface-variant">
-                {summary.passed} of {summary.graded || 0} assessed would pass
-                (≥70%)
-                {summary.incomplete > 0
-                  ? ` · ${summary.incomplete} still need scores`
-                  : ""}
-                .
-              </p>
+      {/* Graduation — admin only (edit page) */}
+      {mode === "edit" &&
+        canManage &&
+        !batch.graduated &&
+        inTraining.length > 0 && (
+          <section className="rounded-xl border border-outline-variant/60 bg-card p-5 shadow-[var(--shadow-clinical)]">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-base font-semibold text-on-surface">
+                  Projected graduation
+                </h2>
+                <p className="mt-1 text-sm text-on-surface-variant">
+                  {summary.passed} of {summary.graded || 0} assessed would pass
+                  (≥70%)
+                  {summary.incomplete > 0
+                    ? ` · ${summary.incomplete} still need scores`
+                    : ""}
+                  .
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                {batch.graduationRequested && (
+                  <>
+                    <span className="rounded-full bg-warning/15 px-2.5 py-1 text-xs font-semibold text-warning">
+                      Review requested
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={dismissReq}
+                      disabled={pending}
+                    >
+                      Dismiss
+                    </Button>
+                  </>
+                )}
+                <BatchGraduationDialog
+                  batchId={batch.id}
+                  batchName={batch.label || batch.code}
+                />
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              {batch.graduationRequested && (
-                <>
-                  <span className="rounded-full bg-warning/15 px-2.5 py-1 text-xs font-semibold text-warning">
-                    Review requested
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={dismissReq}
-                    disabled={pending}
-                  >
-                    Dismiss
-                  </Button>
-                </>
-              )}
-              <BatchGraduationDialog
-                batchId={batch.id}
-                batchName={batch.label || batch.code}
+            <div className="mt-4 grid grid-cols-3 gap-3 text-center">
+              <Stat
+                label="Would pass"
+                value={summary.passed}
+                cls="text-success"
+              />
+              <Stat
+                label="Would fail"
+                value={summary.failed}
+                cls="text-secondary"
+              />
+              <Stat
+                label="No scores"
+                value={summary.incomplete}
+                cls="text-warning"
               />
             </div>
-          </div>
-          <div className="mt-4 grid grid-cols-3 gap-3 text-center">
-            <Stat
-              label="Would pass"
-              value={summary.passed}
-              cls="text-success"
-            />
-            <Stat
-              label="Would fail"
-              value={summary.failed}
-              cls="text-secondary"
-            />
-            <Stat
-              label="No scores"
-              value={summary.incomplete}
-              cls="text-warning"
-            />
-          </div>
-        </section>
-      )}
+          </section>
+        )}
 
       {/* In-training members */}
-      {inTraining.length > 0 && (
+      {mode === "view" && inTraining.length > 0 && (
         <Roster title={`In training (${inTraining.length})`}>
           {inTraining.map((m) => (
             <tr
@@ -408,7 +420,7 @@ export function BatchDetailClient({
       )}
 
       {/* Graduates */}
-      {graduates.length > 0 && (
+      {mode === "view" && graduates.length > 0 && (
         <Roster
           title={`Graduates (${graduates.length})`}
           meta={
@@ -468,14 +480,59 @@ export function BatchDetailClient({
         </Roster>
       )}
 
-      {inTraining.length === 0 && graduates.length === 0 && (
-        <div className="flex flex-col items-center gap-3 rounded-lg border border-outline-variant/60 bg-card px-6 py-14 text-center">
-          <Users className="size-8 text-on-surface-variant/30" aria-hidden />
-          <p className="text-sm text-on-surface-variant">
-            No students or graduates in this batch yet.
-          </p>
-        </div>
+      {/* Students who completed training but did not pass */}
+      {mode === "view" && failedStudents.length > 0 && (
+        <Roster title={`Did not pass (${failedStudents.length})`}>
+          {failedStudents.map((m) => (
+            <tr
+              key={m.id}
+              className="border-outline-variant/40 border-t odd:bg-card even:bg-surface-low"
+            >
+              <td className="px-3 py-2 tabular text-on-surface-variant">—</td>
+              <td className="px-3 py-2">
+                <div className="flex items-center gap-2.5">
+                  <Avatar url={m.photoUrl} />
+                  <div className="min-w-0">
+                    <div className="truncate font-medium text-on-surface">
+                      {m.name}
+                    </div>
+                    <div className="tabular text-xs text-on-surface-variant">
+                      {m.enrollmentNo}
+                    </div>
+                  </div>
+                </div>
+              </td>
+              <td className="px-3 py-2 text-right tabular font-semibold text-on-surface">
+                {m.total != null ? `${m.total}%` : "—"}
+              </td>
+              <td className="px-3 py-2">
+                <Badge variant={VERDICT_BADGE.fail}>Did not pass</Badge>
+              </td>
+              <td className="px-3 py-2 text-right">
+                <Link
+                  href={`/dashboard/students/${m.id}`}
+                  title="View student"
+                  className="inline-flex rounded p-1.5 text-on-surface-variant hover:bg-surface-container hover:text-accent"
+                >
+                  <Pencil className="size-4" />
+                </Link>
+              </td>
+            </tr>
+          ))}
+        </Roster>
       )}
+
+      {mode === "view" &&
+        inTraining.length === 0 &&
+        graduates.length === 0 &&
+        failedStudents.length === 0 && (
+          <div className="flex flex-col items-center gap-3 rounded-lg border border-outline-variant/60 bg-card px-6 py-14 text-center">
+            <Users className="size-8 text-on-surface-variant/30" aria-hidden />
+            <p className="text-sm text-on-surface-variant">
+              No students or graduates in this batch yet.
+            </p>
+          </div>
+        )}
     </div>
   );
 }

@@ -3,14 +3,22 @@
  * rankings per batch (top 3 by total score → 1/2/3, others 0).
  *   npx tsx scripts/backfill-ranking-legacy.ts
  */
-import { config } from "dotenv";
+
 import { PrismaClient } from "@prisma/client";
+import { config } from "dotenv";
 
 config({ path: ".env" });
 config({ path: ".env.local" });
 
 const prisma = new PrismaClient();
-const SCORE_KEYS = ["scoreFWE", "scoreSJE", "scoreEP", "scorePAS", "scoreCCST", "scoreCCSM"] as const;
+const SCORE_KEYS = [
+  "scoreFWE",
+  "scoreSJE",
+  "scoreEP",
+  "scorePAS",
+  "scoreCCST",
+  "scoreCCSM",
+] as const;
 
 function batchNumber(code: string | null): number | null {
   const m = code?.match(/(\d+)/);
@@ -46,7 +54,9 @@ async function main() {
       id: g.id,
       total: SCORE_KEYS.reduce((s, k) => s + ((g[k] as number | null) ?? 0), 0),
     }));
-    const ranked = totals.filter((g) => g.total > 0).sort((a, b) => b.total - a.total);
+    const ranked = totals
+      .filter((g) => g.total > 0)
+      .sort((a, b) => b.total - a.total);
     for (const g of totals) {
       const pos = ranked.findIndex((r) => r.id === g.id);
       const ranking = pos >= 0 && pos < 3 ? pos + 1 : 0;

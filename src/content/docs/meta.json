@@ -1,11 +1,4 @@
 {
-  "title": "Asclepius Docs",
-  "pages": [
-    "index",
-    "verify",
-    "graduates",
-    "staff",
-    "reference",
-    "troubleshooting"
-  ]
+  "title": "Admin Wiki",
+  "pages": ["index", "registry", "courses", "publishing", "administration"]
 }

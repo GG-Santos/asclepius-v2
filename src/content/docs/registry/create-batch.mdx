@@ -1,0 +1,88 @@
+---
+title: Create a Batch
+description: Create a cohort before students, scores, graduation, or credentials depend on it.
+---
+
+Last reviewed: 2026-06-12.
+
+A batch is the cohort anchor. It connects active students, professor ownership,
+grading setup, cohort media, graduation, public cohort pages, and LCN context.
+
+<OpenRoute href="/dashboard/batches">Open Batches</OpenRoute>
+
+<WorkflowMedia title="Create a Batch" slug="create-batch" />
+
+## Before You Start
+
+| Field | Required | Notes |
+| --- | --- | --- |
+| Code | Yes | Example: `BATCH-21`. The server uppercases it and requires uniqueness. |
+| Batch name | No | Optional display label for admins and public cohort context. |
+| Professor account | No | Assigns a professor login to the cohort. |
+| Display name | No | Instructor label shown when the account name is not enough. |
+| Logo | No | Cohort crest shown in admin tables and public context. |
+
+## Steps
+
+<Steps>
+
+<Step>
+
+### Open the create form
+
+Choose **New batch** on the Batches page. The **Add batch** form opens above the
+table.
+
+</Step>
+
+<Step>
+
+### Enter the batch details
+
+Fill **Code** first. Add **Batch name**, **Professor account**, **Display name**,
+and logo only when those details are confirmed.
+
+</Step>
+
+<Step>
+
+### Create the record
+
+Choose **Create batch**. The table updates with columns for Batch, Status,
+Professor, Active / Grad, Avg total, and Actions.
+
+</Step>
+
+<Step>
+
+### Open the new batch
+
+Use the row's view action or the batch name link to inspect the batch detail
+page before adding students.
+
+</Step>
+
+</Steps>
+
+## Verification
+
+| Check | Expected result |
+| --- | --- |
+| Batches table | The new batch appears with `Empty` status. |
+| View action | The batch detail page opens. |
+| Edit action | The edit page can open before students are added. |
+| Delete action | The delete button is enabled while the batch has zero members. |
+
+## Troubleshooting
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| `Code is required` | The code field was blank. | Enter the official cohort code and submit again. |
+| `already exists` | Another batch uses the same code. | Search Batches for that code before creating a duplicate. |
+| Professor is blank | No account or display name was selected. | Edit the batch after the account is created, or add a display name. |
+| Logo does not appear | Upload was not saved or the file was rejected. | Reopen the batch edit page and attach the approved image again. |
+
+<DocNote title="Treat the batch code as permanent" tone="warn">
+After students or graduates depend on a code, changing it can affect filters,
+LCN context, rankings, public cohort pages, and audit history.
+</DocNote>

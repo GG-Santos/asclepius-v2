@@ -115,6 +115,23 @@ export default async function PortalItemPage({
       // Shuffle questions and their options per render when the author enabled
       // it. Grading is keyed by id, so order never affects scoring.
       const ordered = q.shuffle ? shuffled(q.questions) : q.questions;
+      // Per-attempt random draw from the linked question bank: the drawn set
+      // rides along as hidden `presented` fields and is validated on submit.
+      let drawnRows: {
+        id: string;
+        type: string;
+        prompt: string;
+        points: number;
+        feedback: string | null;
+        options: unknown;
+      }[] = [];
+      if (q.bankId && q.bankDrawCount) {
+        const bankRows = await coursesPrisma.bankQuestion.findMany({
+          where: { bankId: q.bankId },
+        });
+        drawnRows = shuffled(bankRows).slice(0, q.bankDrawCount);
+      }
+      const presented = [...ordered, ...drawnRows];
       quiz = {
         id: q.id,
         passingScore: q.passingScore,
@@ -123,7 +140,7 @@ export default async function PortalItemPage({
         bestScore: progress?.bestScore ?? null,
         timeLimitMins: q.timeLimitMins,
         // Strip the `correct` flag before sending options to the browser.
-        questions: ordered.map((qq) => {
+        questions: presented.map((qq) => {
           const opts = parseOptions(qq.options).map((o) => ({
             id: o.id,
             text: o.text,

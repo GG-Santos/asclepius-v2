@@ -1,6 +1,6 @@
 "use client";
 
-import { Cookie, ShieldCheck } from "lucide-react";
+import { Activity, Cookie, ShieldCheck } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { CONSENT_OPEN_EVENT, readConsent, writeConsent } from "@/lib/consent";
+import { cn } from "@/lib/utils";
 
 export function ConsentBanner() {
   const [mounted, setMounted] = useState(false);
@@ -43,7 +44,7 @@ export function ConsentBanner() {
 
   return (
     <>
-      {visible && (
+      {visible && !customizeOpen && (
         <div
           role="dialog"
           aria-label="Cookie consent"
@@ -90,49 +91,78 @@ export function ConsentBanner() {
       )}
 
       <Dialog open={customizeOpen} onOpenChange={setCustomizeOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Cookie preferences</DialogTitle>
-            <DialogDescription>
-              Choose which cookies Asclepius may use. You can change this
-              anytime.
-            </DialogDescription>
+        <DialogContent className="max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-lg gap-0 overflow-x-hidden overflow-y-auto p-0">
+          <DialogHeader className="border-b border-outline-variant/60 bg-surface-low px-5 py-5 pr-12">
+            <div className="flex items-start gap-3">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-md border border-accent/20 bg-accent/10 text-accent">
+                <Cookie className="size-5" aria-hidden />
+              </span>
+              <div className="min-w-0">
+                <DialogTitle>Cookie preferences</DialogTitle>
+                <DialogDescription className="mt-1">
+                  Choose which cookies Asclepius may use. You can change this
+                  anytime.
+                </DialogDescription>
+              </div>
+            </div>
           </DialogHeader>
 
-          <div className="space-y-3">
-            <div className="flex items-start justify-between gap-4 rounded-md border border-outline-variant/60 bg-surface-low p-4">
-              <div>
-                <p className="flex items-center gap-1.5 font-medium text-on-surface">
-                  <ShieldCheck className="size-4 text-accent" aria-hidden />
-                  Essential
-                </p>
-                <p className="mt-1 text-xs text-on-surface-variant">
-                  Required for sign-in, security, and license verification.
-                  Always on.
-                </p>
+          <div className="space-y-3 px-5 py-4">
+            <div className="rounded-md border border-outline-variant/60 bg-card p-4">
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="flex items-center gap-2 font-medium text-on-surface">
+                    <ShieldCheck className="size-4 text-accent" aria-hidden />
+                    Essential
+                  </p>
+                  <p className="mt-1 text-sm text-on-surface-variant">
+                    Required for sign-in, security, and license verification.
+                  </p>
+                </div>
+                <span className="shrink-0 rounded-full bg-accent/10 px-2.5 py-1 text-xs font-semibold text-accent">
+                  Always on
+                </span>
               </div>
-              <span className="mt-1 rounded-full bg-accent/10 px-2.5 py-0.5 text-xs font-semibold text-accent">
-                Always on
-              </span>
             </div>
 
-            <label className="flex cursor-pointer items-start justify-between gap-4 rounded-md border border-outline-variant/60 p-4">
-              <div>
-                <p className="font-medium text-on-surface">Analytics</p>
-                <p className="mt-1 text-xs text-on-surface-variant">
-                  Anonymous usage statistics to help us improve the registry.
-                </p>
+            <label className="group block cursor-pointer rounded-md border border-outline-variant/60 bg-card p-4 transition-colors hover:border-accent/50 focus-within:ring-2 focus-within:ring-accent focus-within:ring-offset-1 focus-within:ring-offset-background">
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="flex items-center gap-2 font-medium text-on-surface">
+                    <Activity className="size-4 text-accent" aria-hidden />
+                    Analytics
+                  </p>
+                  <p className="mt-1 text-sm text-on-surface-variant">
+                    Anonymous usage statistics to help us improve the registry.
+                  </p>
+                </div>
+                <span
+                  aria-hidden
+                  className={cn(
+                    "mt-0.5 flex h-6 w-11 shrink-0 items-center rounded-full border p-0.5 transition-colors",
+                    analytics
+                      ? "border-accent bg-accent"
+                      : "border-outline-variant bg-surface-container",
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "size-5 rounded-full bg-card shadow-[var(--shadow-clinical)] transition-transform",
+                      analytics && "translate-x-5",
+                    )}
+                  />
+                </span>
               </div>
               <input
                 type="checkbox"
                 checked={analytics}
                 onChange={(e) => setAnalytics(e.target.checked)}
-                className="mt-1 size-5 accent-[var(--color-accent)]"
+                className="sr-only"
               />
             </label>
           </div>
 
-          <div className="flex justify-end gap-2">
+          <div className="flex flex-col-reverse gap-2 border-t border-outline-variant/60 bg-surface-low px-5 py-4 sm:flex-row sm:justify-end">
             <Button variant="ghost" onClick={() => decide(false)}>
               Reject optional
             </Button>

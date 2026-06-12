@@ -1,7 +1,7 @@
 "use client";
 
 import type { ColumnDef, FilterFn } from "@tanstack/react-table";
-import { Eye, Layers, Trash2 } from "lucide-react";
+import { Eye, Layers, Pencil, Trash2 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -203,6 +203,13 @@ export function BatchesDataTable({ rows }: { rows: BatchRow[] }) {
             >
               <Eye className="size-4" />
             </Link>
+            <Link
+              href={`/dashboard/batches/${b.id}/edit`}
+              title="Edit batch"
+              className="rounded p-1.5 text-on-surface-variant hover:bg-surface-container hover:text-accent"
+            >
+              <Pencil className="size-4" />
+            </Link>
             {b.members > 0 ? (
               <button
                 type="button"
@@ -256,7 +263,7 @@ export function BatchesDataTable({ rows }: { rows: BatchRow[] }) {
         professor: 150,
         gradActive: 110,
         avgTotal: 100,
-        actions: 90,
+        actions: 120,
       }}
     />
   );

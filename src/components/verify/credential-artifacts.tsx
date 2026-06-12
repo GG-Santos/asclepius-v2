@@ -21,6 +21,7 @@ import { DownloadArtifactButton } from "@/components/verify/download-artifact-bu
 import { LicenseCard } from "@/components/verify/license-card";
 import { LicenseCardBack } from "@/components/verify/license-card-back";
 import { ProtectedArtifact } from "@/components/verify/protected-artifact";
+import type { ResolvedTemplate } from "@/lib/artifact-template/resolve";
 import { cn } from "@/lib/utils";
 
 const SIGNATURE_SLOTS: { slot: SignatureSlot; label: string }[] = [
@@ -133,6 +134,7 @@ export function CredentialArtifacts({
   downloadable = false,
   photoDataUrl = null,
   batch = null,
+  template,
 }: {
   name: string;
   lcn: string;
@@ -153,6 +155,8 @@ export function CredentialArtifacts({
     label: string | null;
     logoUrl: string | null;
   } | null;
+  /** Org artifact template (server-resolved); omitted = built-in artwork. */
+  template?: ResolvedTemplate;
 }) {
   const certRef = useRef<HTMLDivElement>(null);
   const frontRef = useRef<HTMLDivElement>(null);
@@ -226,6 +230,7 @@ export function CredentialArtifacts({
                     qrDataUrl={certQrDataUrl}
                     signatures={signatures}
                     frameless
+                    template={template}
                   />
                 </div>
                 <div className="flex flex-wrap items-center justify-between gap-3">
@@ -261,6 +266,7 @@ export function CredentialArtifacts({
                     photoUrl={cardPhoto}
                     qrDataUrl={certQrDataUrl}
                     warningOverlay
+                    template={template}
                   />
                 </ProtectedArtifact>
               </CometCard>
@@ -301,6 +307,7 @@ export function CredentialArtifacts({
                         photoUrl={cardPhoto}
                         signature={idSignatures.front}
                         frameless
+                        template={template}
                       />
                     </div>
                   }
@@ -313,6 +320,7 @@ export function CredentialArtifacts({
                           two: idSignatures.backTwo,
                         }}
                         frameless
+                        template={template}
                       />
                     </div>
                   }
@@ -387,9 +395,15 @@ export function CredentialArtifacts({
                           expiration={expiration}
                           photoUrl={cardPhoto}
                           warningOverlay
+                          template={template}
                         />
                       }
-                      back={<LicenseCardBack qrDataUrl={backQrDataUrl} />}
+                      back={
+                        <LicenseCardBack
+                          qrDataUrl={backQrDataUrl}
+                          template={template}
+                        />
+                      }
                     />
                   </ProtectedArtifact>
                 </CometCard>

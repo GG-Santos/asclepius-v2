@@ -1,0 +1,96 @@
+---
+title: Create a Student
+description: Add an in-training learner before graduation.
+---
+
+Last reviewed: 2026-06-12.
+
+Student records are training records. They hold identity, batch assignment,
+photo, raw quiz scores, and practical scores. They do not have LCNs until they
+are graduated.
+
+<OpenRoute href="/dashboard/students/new">Open New Student</OpenRoute>
+
+<WorkflowMedia title="Create a Student" slug="create-student" />
+
+## Form Sections
+
+| Section | What to enter |
+| --- | --- |
+| Photo | Approved portrait photo. Saving is blocked while upload is still busy or failed. |
+| Profile Information | Batch, First, Middle, Last, and Suffix. |
+| Periodic Examinations | Raw quiz scores. The running total feeds SJE at graduation. |
+| Final & Practical Examinations | Raw practical scores for FWE, EP, PAS, CCST, and CCSM. |
+
+## Steps
+
+<Steps>
+
+<Step>
+
+### Open the new student form
+
+From Students, choose **New student**, or open the new student route directly.
+
+</Step>
+
+<Step>
+
+### Select the batch
+
+Choose the correct batch before entering scores. The selected batch controls
+which score rows and grading scheme appear.
+
+</Step>
+
+<Step>
+
+### Enter identity and photo
+
+Enter the name exactly as it should later appear on credentials. Attach the
+approved portrait photo when available.
+
+</Step>
+
+<Step>
+
+### Enter training scores
+
+Fill quiz and practical rows from the official grade book. Missing required
+scores leave the student incomplete and block batch graduation.
+
+</Step>
+
+<Step>
+
+### Create the record
+
+Choose **Create Student**, then confirm the create dialog. The student appears
+in the Students list as an in-training record.
+
+</Step>
+
+</Steps>
+
+## Verification
+
+| Check | Expected result |
+| --- | --- |
+| Students list | The new learner appears under Students. |
+| Batch column | The selected batch code is shown. |
+| Status | The record is `In training`. |
+| Total | A total appears when enough scores exist. |
+
+## Troubleshooting
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| Batch selection is wrong | The wrong cohort was selected before saving. | Edit the student before graduation and assign the correct batch. |
+| Create dialog appears unexpectedly | Student create/save actions confirm before applying. | Review the form and choose **Create Student** in the dialog. |
+| Photo is missing after save | Upload failed or was still in progress. | Reopen the student edit page and attach the photo again. |
+| Graduation preview later shows No scores | Required score rows were left blank. | Return to the student edit page and enter the missing scores. |
+
+<DocNote title="Students are not credentials" tone="info">
+Do not create a graduate record to bypass incomplete student data. Fix the
+student record and graduate the batch.
+</DocNote>

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { uploadImage } from "@/lib/blob";
 import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/session";
+import { requireAdminAction } from "@/lib/session";
 
 export type BlogActionState = {
   ok?: boolean;
@@ -79,7 +79,14 @@ export async function createPost(
   _prev: BlogActionState,
   formData: FormData,
 ): Promise<BlogActionState> {
-  const session = await requireUser();
+  // Dashboard authoring is admin-only; graduates author drafts via the
+  // portal posts actions (ownership + canBlog enforced there).
+  let session: Awaited<ReturnType<typeof requireAdminAction>>;
+  try {
+    session = await requireAdminAction();
+  } catch {
+    return { error: "Admin only." };
+  }
   const f = readFields(formData);
   const fieldErrors: Record<string, string> = {};
   if (!f.title) fieldErrors.title = "Title is required.";
@@ -113,7 +120,12 @@ export async function updatePost(
   _prev: BlogActionState,
   formData: FormData,
 ): Promise<BlogActionState> {
-  const session = await requireUser();
+  let session: Awaited<ReturnType<typeof requireAdminAction>>;
+  try {
+    session = await requireAdminAction();
+  } catch {
+    return { error: "Admin only." };
+  }
   const f = readFields(formData);
   const fieldErrors: Record<string, string> = {};
   if (!f.title) fieldErrors.title = "Title is required.";
@@ -153,7 +165,7 @@ export async function updatePost(
 }
 
 export async function deletePost(formData: FormData): Promise<void> {
-  await requireUser();
+  await requireAdminAction();
   const id = String(formData.get("id") ?? "");
   if (id) {
     await prisma.blogPost.delete({ where: { id } });

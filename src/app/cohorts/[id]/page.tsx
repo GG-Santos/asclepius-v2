@@ -126,7 +126,7 @@ export default async function CohortPage({
             {/* biome-ignore lint/performance/noImgElement: admin-curated media on arbitrary domains */}
             <img
               src={heroImageUrl}
-              alt={`${batch.label ?? title} batch photo`}
+              alt={`${batch.label ?? title} batch group portrait`}
               className="aspect-video w-full rounded-2xl border border-outline-variant/60 object-cover shadow-[var(--shadow-clinical-md)] dark:border-white/[0.08]"
             />
           </section>

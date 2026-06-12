@@ -10,6 +10,62 @@ export type TestimonialActionState = {
   fieldErrors?: Record<string, string>;
 };
 
+/**
+ * Admin adds a testimonial — either standalone, or ON BEHALF of a graduate
+ * (placeholder). A placeholder publishes immediately and is REPLACED (sent
+ * back through review) the moment that graduate submits their own from the
+ * portal.
+ */
+export async function createAdminTestimonial(
+  _prev: TestimonialActionState,
+  formData: FormData,
+): Promise<TestimonialActionState> {
+  await requireAdmin();
+  const name = String(formData.get("name") ?? "").trim();
+  const batchCode = String(formData.get("batchCode") ?? "").trim() || null;
+  const quote = String(formData.get("quote") ?? "").trim();
+  const rating = Number(formData.get("rating") ?? 5);
+  const lcn = String(formData.get("lcn") ?? "").trim();
+
+  const fieldErrors: Record<string, string> = {};
+  if (!name) fieldErrors.name = "Name is required.";
+  if (quote.length < 10) fieldErrors.quote = "At least a sentence (10+ chars).";
+  if (quote.length > 600) fieldErrors.quote = "Keep it under 600 characters.";
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5)
+    fieldErrors.rating = "Pick 1–5 stars.";
+  if (Object.keys(fieldErrors).length) return { fieldErrors };
+
+  if (lcn) {
+    const graduate = await prisma.graduate.findUnique({ where: { lcn } });
+    if (!graduate) return { fieldErrors: { lcn: "No graduate has this LCN." } };
+    const existing = await prisma.testimonial.findFirst({
+      where: { submittedByLcn: lcn },
+    });
+    if (existing) {
+      return {
+        fieldErrors: {
+          lcn: "This graduate already has a testimonial (one per graduate).",
+        },
+      };
+    }
+  }
+
+  await prisma.testimonial.create({
+    data: {
+      name,
+      batchCode,
+      quote,
+      rating,
+      approved: true, // admin-entered — publishes immediately
+      submittedByLcn: lcn || null,
+      placeholder: Boolean(lcn),
+    },
+  });
+  revalidatePath("/dashboard/testimonials");
+  revalidatePath("/");
+  return { ok: true };
+}
+
 export async function setTestimonialApproved(
   formData: FormData,
 ): Promise<void> {

@@ -1,0 +1,85 @@
+---
+title: Delete a Batch
+description: Remove an empty batch safely.
+---
+
+Last reviewed: 2026-06-12.
+
+Batches can be deleted only while they are empty. If a batch has students or
+graduates, the delete action is disabled and the tooltip tells you to reassign
+members first.
+
+<OpenRoute href="/dashboard/batches">Open Batches</OpenRoute>
+
+<WorkflowMedia title="Delete a Batch" slug="delete-batch" />
+
+## When Delete Is Allowed
+
+| Batch state | Delete action |
+| --- | --- |
+| Empty | Enabled. Confirmation dialog permanently removes the batch. |
+| Has students | Disabled. Reassign or remove students first. |
+| Has graduates | Disabled. Graduate records preserve credential history. |
+| Graduated | Disabled when members exist. Do not delete credential history. |
+
+## Steps
+
+<Steps>
+
+<Step>
+
+### Confirm the batch is empty
+
+Open Batches and inspect the target row. The status should be **Empty**, and
+Active / Grad should show no members.
+
+</Step>
+
+<Step>
+
+### Use the delete action
+
+Choose the trash action in the row. Read the confirmation dialog; it names the
+batch code and states that deletion is permanent.
+
+</Step>
+
+<Step>
+
+### Confirm deletion
+
+Choose **Delete** only after verifying that the batch is not referenced by any
+student or graduate record.
+
+</Step>
+
+<Step>
+
+### Recheck the list
+
+The batch should disappear from the Batches table and search results.
+
+</Step>
+
+</Steps>
+
+## Verification
+
+| Check | Expected result |
+| --- | --- |
+| Table search | The deleted batch code no longer appears. |
+| Students list | No student was assigned to that code before deletion. |
+| Graduates list | No graduate credential used that code before deletion. |
+
+## Troubleshooting
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| Trash button is disabled | The batch has one or more members. | Reassign or remove students. Do not delete batches that own graduate history. |
+| Delete succeeds but route still loads in browser history | Browser cache or stale tab. | Refresh Batches and search for the code. |
+| Wrong batch was almost deleted | Similar labels or duplicate-looking codes. | Search by exact code, then verify row details before confirming. |
+
+<DocNote title="Do not delete around real history" tone="danger">
+If a batch has trained students or graduates, preserve it. Deletion is for empty
+setup mistakes only.
+</DocNote>

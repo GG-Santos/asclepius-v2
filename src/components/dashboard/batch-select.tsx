@@ -7,6 +7,7 @@ type BatchOption = {
   code: string;
   batchNumber: string | null;
   label: string | null;
+  proficiencyRows?: unknown;
 };
 
 function displayName(b: BatchOption): string {
@@ -20,9 +21,12 @@ function displayName(b: BatchOption): string {
 export function BatchSelect({
   defaultValue,
   name = "batchCode",
+  onValueChange,
 }: {
   defaultValue?: string | null;
   name?: string;
+  /** Notifies the parent (e.g. so quiz definitions follow the batch). */
+  onValueChange?: (code: string, batch?: BatchOption | null) => void;
 }) {
   const [options, setOptions] = useState<BatchOption[]>([]);
   const [value, setValue] = useState(defaultValue ?? "");
@@ -42,7 +46,14 @@ export function BatchSelect({
     <select
       name={name}
       value={value}
-      onChange={(e) => setValue(e.target.value)}
+      onChange={(e) => {
+        const next = e.target.value;
+        setValue(next);
+        onValueChange?.(
+          next,
+          options.find((option) => option.code === next) ?? null,
+        );
+      }}
       disabled={loading}
       className="h-11 w-full rounded border border-outline-variant bg-card px-3 text-sm text-on-surface focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30 disabled:opacity-50"
     >

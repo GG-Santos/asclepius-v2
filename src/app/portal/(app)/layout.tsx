@@ -1,6 +1,7 @@
 import { GraduationCap, Settings as SettingsIcon } from "lucide-react";
 import Link from "next/link";
 import { SignOutButton } from "@/components/sign-out-button";
+import { canAuthorPosts } from "@/lib/blog-permission";
 import { requireGraduate } from "@/lib/session";
 
 export default async function PortalAppLayout({
@@ -9,6 +10,8 @@ export default async function PortalAppLayout({
   children: React.ReactNode;
 }) {
   const { session } = await requireGraduate();
+  // "My Posts" appears only for graduates an admin granted blog access (R8).
+  const showPosts = await canAuthorPosts(session);
 
   return (
     <div className="flex min-h-svh flex-col bg-surface">
@@ -35,6 +38,20 @@ export default async function PortalAppLayout({
               >
                 Courses
               </Link>
+              <Link
+                href="/portal/grades"
+                className="rounded px-3 py-1.5 text-sm font-medium text-on-surface-variant hover:bg-surface-container hover:text-on-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              >
+                Grades
+              </Link>
+              {showPosts && (
+                <Link
+                  href="/portal/posts"
+                  className="rounded px-3 py-1.5 text-sm font-medium text-on-surface-variant hover:bg-surface-container hover:text-on-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                >
+                  My Posts
+                </Link>
+              )}
               <Link
                 href="/portal/settings"
                 className="rounded px-3 py-1.5 text-sm font-medium text-on-surface-variant hover:bg-surface-container hover:text-on-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"

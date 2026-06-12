@@ -1,0 +1,45 @@
+---
+title: Administration overview
+description: Staff access, settings, expiry policy, and template controls.
+---
+
+Last reviewed: 2026-06-12.
+
+Administration is under development. It controls who can change records, how
+credentials expire, and what generated artifacts say.
+
+<OpenRoute href="/dashboard/staff">Open Staff</OpenRoute>
+<OpenRoute href="/dashboard/settings">Open Settings</OpenRoute>
+<OpenRoute href="/dashboard/settings/expiry">Open Expiry Policy</OpenRoute>
+<OpenRoute href="/dashboard/settings/templates">Open Templates</OpenRoute>
+
+## Access model
+
+| Role | Intended user | Access |
+| --- | --- | --- |
+| Admin | Operations owner or trusted manager. | Full dashboard, admin wiki, registry, courses, content, staff, and settings. |
+| Professor | Instructor assigned to active cohorts. | Limited dashboard access for assigned training work. |
+| Graduate | Certified EMT using the portal. | Graduate portal, own courses, own settings, and own credential context. |
+
+## Admin review cadence
+
+| Cadence | Review |
+| --- | --- |
+| Daily | Overview, "Needs attention", new inquiries, expired listed records, and recent verifications. |
+| Weekly | Draft content, open courses, active batches, and upcoming renewals. |
+| Before graduation | Batch setup, score completeness, professor request, and artifact templates. |
+| Monthly | Staff access, admin accounts, expiry policy, public content, and asset library. |
+| Policy change | Expiry years, auto-archive grace, template wording, signatures, and role boundaries. |
+
+## Settings pages
+
+| Page | Route | Use for |
+| --- | --- | --- |
+| Account settings | `/dashboard/settings` | Avatar and password changes for the signed-in account. |
+| Expiry policy | `/dashboard/settings/expiry` | License validity years and auto-archive grace years. |
+| Artifact templates | `/dashboard/settings/templates` | Certificate, ID front, and ID back text, colors, artwork layers, and live preview. |
+
+<DocNote title="Admin role is full access" tone="warn">
+Only assign admin access to people trusted to change public credentials, staff
+roles, course publishing, public content, and settings.
+</DocNote>

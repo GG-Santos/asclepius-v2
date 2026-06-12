@@ -74,7 +74,7 @@ export default function LoginPage() {
                 Staff sign in
               </h1>
               <p className="mt-1 text-sm text-on-surface-variant">
-                Admin and writer access only.
+                Admin and professor access only.
               </p>
             </div>
             <Suspense fallback={null}>

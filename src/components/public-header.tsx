@@ -61,6 +61,7 @@ export async function PublicHeader({
   verifyHref?: string;
 }) {
   const session = await getSession();
+  const isAdmin = session?.user.role === "admin";
 
   return (
     <header className="sticky top-0 z-30 border-b border-outline-variant bg-surface/85 backdrop-blur-sm">
@@ -96,12 +97,12 @@ export async function PublicHeader({
           >
             News
           </Link>
-          {session && (
+          {isAdmin && (
             <Link
               href="/docs"
               className="hidden text-on-surface-variant transition-colors hover:text-primary dark:hover:text-accent-bright sm:inline"
             >
-              Help
+              Admin wiki
             </Link>
           )}
 

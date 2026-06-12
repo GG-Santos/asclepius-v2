@@ -1,0 +1,106 @@
+---
+title: Graduate a Batch
+description: Convert complete in-training students into public graduate credentials.
+---
+
+Last reviewed: 2026-06-12.
+
+Batch graduation is the main credential-issuing action. It converts all active
+students in the batch according to the current grading result.
+
+<OpenRoute href="/dashboard/batches">Open Batches</OpenRoute>
+
+<WorkflowMedia title="Graduate a Batch" slug="graduate-batch" />
+
+## Preflight
+
+| Check | Why it matters |
+| --- | --- |
+| Batch code and label | Used in LCN context, filters, cohort pages, and credential context. |
+| Professor and description | Shown in admin and public cohort context. |
+| Roster | Only active students in the batch are evaluated. |
+| Photos | Passing students inherit student photos into credential artifacts. |
+| Scores | Missing required scores block graduation. |
+| Graduation date | Drives issued date, expiry date, LCN month, cards, and certificates. |
+
+## Dialog Results
+
+| Dialog count | Meaning |
+| --- | --- |
+| Will graduate | Students at 70% or above. They become graduate records with generated LCNs. |
+| Withdrawn | Students below 70%. They remain student history but are marked withdrawn. |
+| No scores | Incomplete students. Graduation is disabled until fixed. |
+
+## Steps
+
+<Steps>
+
+<Step>
+
+### Open the batch
+
+From Batches, open the target batch detail page. Review in-training students,
+graduates, batch metadata, and any review request.
+
+</Step>
+
+<Step>
+
+### Start graduation
+
+Choose **Mark batch graduated**. The dialog checks the cohort and shows Will
+graduate, Withdrawn, and No scores.
+
+</Step>
+
+<Step>
+
+### Set the graduation date
+
+Use the official completion date in **Graduation date**. Do not leave today's
+date if the official date is different.
+
+</Step>
+
+<Step>
+
+### Resolve blockers
+
+If **No scores** is greater than zero, cancel. Enter missing scores or remove
+the student from the active cohort before trying again.
+
+</Step>
+
+<Step>
+
+### Confirm graduation
+
+Choose **Graduate [n] student(s)**. The batch is marked graduated, passing
+students receive LCNs, failing students are withdrawn, and rankings recompute.
+
+</Step>
+
+</Steps>
+
+## Verification
+
+| Check | Expected result |
+| --- | --- |
+| Batches table | The batch status changes to Graduated or Partial depending on remaining members. |
+| Students list | Passing students no longer appear in the active student list. |
+| Graduates list | Passing students appear as graduate records with generated LCNs. |
+| Public verification | Each new LCN opens at `/verify/[lcn]`. |
+
+## Troubleshooting
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| Graduation button is disabled in dialog | One or more students have no scores. | Cancel, fix those student records, and reopen the dialog. |
+| A student became withdrawn | Their total evaluation was below 70%. | Confirm source scores. Correct scores only from official evidence. |
+| New LCN date looks wrong | Graduation date was set incorrectly. | Correct through the approved registry process before distributing artifacts. |
+| Expected learner is missing | The student is not active in that batch. | Open the student record and confirm status and batch assignment. |
+
+<DocNote title="This action publishes credentials" tone="danger">
+Do not graduate around bad names, photos, scores, batch labels, or dates. Cancel
+and fix the source record first.
+</DocNote>

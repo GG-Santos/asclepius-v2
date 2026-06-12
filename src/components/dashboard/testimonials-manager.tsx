@@ -20,6 +20,7 @@ export type TestimonialRow = {
   approved: boolean;
   pinned: boolean;
   fromPortal: boolean;
+  placeholder: boolean;
 };
 
 export function TestimonialsManager({ rows }: { rows: TestimonialRow[] }) {
@@ -91,6 +92,11 @@ export function TestimonialsManager({ rows }: { rows: TestimonialRow[] }) {
               {r.fromPortal && (
                 <span className="rounded-full bg-surface-container px-1.5 py-0.5 text-[10px] font-medium text-on-surface-variant">
                   From graduate
+                </span>
+              )}
+              {r.placeholder && (
+                <span className="rounded-full bg-warning/15 px-1.5 py-0.5 text-[10px] font-semibold text-warning">
+                  Placeholder — replaced when they submit their own
                 </span>
               )}
             </p>

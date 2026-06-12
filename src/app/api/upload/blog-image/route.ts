@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { uploadImage } from "@/lib/blob";
+import { canAuthorPosts } from "@/lib/blog-permission";
 import { getSession } from "@/lib/session";
 
 // Inline image upload for the blog rich-text editor. Stores on Vercel Blob
 // (content-addressed) and returns the public URL for the editor to insert.
+// Editors only: admins, or graduates with admin-granted canBlog.
 export async function POST(req: Request) {
   const session = await getSession();
-  const role = session?.user.role;
-  if (!session || (role !== "admin" && role !== "writer")) {
+  if (!session || !(await canAuthorPosts(session))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 

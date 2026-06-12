@@ -3,10 +3,10 @@ import Link from "next/link";
 import { createPost } from "@/app/dashboard/blog/actions";
 import { BlogForm } from "@/components/dashboard/blog-form";
 import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/session";
+import { requireAdmin } from "@/lib/session";
 
 export default async function NewPostPage() {
-  await requireUser();
+  await requireAdmin();
   const allTags = await prisma.blogPost.findMany({ select: { tags: true } });
   const tagSuggestions = [...new Set(allTags.flatMap((p) => p.tags))].sort();
   return (

@@ -2,7 +2,6 @@ import {
   CalendarClock,
   CircleCheck,
   CircleX,
-  FileText,
   GraduationCap,
   Search,
   ShieldX,
@@ -27,7 +26,12 @@ import { buildAlerts } from "@/lib/dashboard-insights";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { getSubjectAnalytics } from "@/lib/subject-analytics";
-import type { SubjectAnalytics } from "@/lib/subject-meta";
+import {
+  DEFAULT_SUBJECT_FILTERS,
+  filterCohort,
+  type SubjectAnalytics,
+  subjectStats,
+} from "@/lib/subject-meta";
 
 export default async function DashboardOverview({
   searchParams,
@@ -36,7 +40,9 @@ export default async function DashboardOverview({
 }) {
   const session = await getSession();
   const { denied, range } = await searchParams;
-  const role = session?.user.role ?? "writer";
+  // Layout guarantees admin|professor here; default to the least-privileged
+  // of the two for safety.
+  const role = session?.user.role ?? "professor";
   const firstName = session?.user.name?.split(" ")[0] ?? "there";
 
   if (role === "professor") {
@@ -96,28 +102,9 @@ export default async function DashboardOverview({
     );
   }
 
-  if (role !== "admin") {
-    return (
-      <div className="mx-auto max-w-[1000px] space-y-6">
-        <PageHeader
-          title={`Welcome back, ${firstName}`}
-          meta={<p>Write and manage blog posts.</p>}
-        />
-        <Link href="/dashboard/blog" className="block max-w-sm">
-          <Card className="transition-shadow hover:shadow-[var(--shadow-clinical-md)]">
-            <CardHeader>
-              <FileText className="size-6 text-accent" />
-              <CardTitle>Blog</CardTitle>
-            </CardHeader>
-            <CardContent className="text-sm text-on-surface-variant">
-              Draft and publish articles for the public site.
-            </CardContent>
-          </Card>
-        </Link>
-      </div>
-    );
-  }
-
+  // The layout guarantees admin|professor; professor returned above, so only
+  // admins reach the analytics overview. (The old writer overview is gone
+  // with the writer role.)
   const r = normalizeRange(range);
   // Kick both fetches off immediately, but do NOT await here: each zone below
   // awaits the shared promise inside its own Suspense boundary, so the shell
@@ -135,6 +122,12 @@ export default async function DashboardOverview({
         actions={
           <>
             <RangePicker value={r} />
+            {/* Renewal-ID export follows the selected range (R14). */}
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/dashboard/graduates/recertified?range=${r}`}>
+                Renewal IDs ({r}d)
+              </Link>
+            </Button>
             <Button asChild variant="outline" size="sm">
               <Link href="/dashboard/graduates/new">Add graduate</Link>
             </Button>
@@ -187,6 +180,12 @@ async function SubjectZone({
   subjectPromise: Promise<SubjectAnalytics>;
 }) {
   const subj = await subjectPromise;
+  // Headline stats follow the component's default filters (active graduates).
+  const stats = subjectStats(
+    filterCohort(subj.records, DEFAULT_SUBJECT_FILTERS).filter(
+      (r) => !r.legacy,
+    ),
+  );
   return (
     <Card>
       <CardHeader>
@@ -194,20 +193,23 @@ async function SubjectZone({
           Cohort performance by subject
         </CardTitle>
         <p className="mt-1 text-sm text-on-surface-variant">
-          Where graduates are strong and where they struggle — across every
-          exam, globally and per batch.
+          Where cohorts are strong and where they struggle — every exam,
+          filterable to failed students and license standing, globally and per
+          batch.
         </p>
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <SubjectStat
             label="Avg Total Evaluation"
-            value={subj.avgTotal != null ? `${subj.avgTotal}` : "—"}
+            value={stats.avgTotal != null ? `${stats.avgTotal}` : "—"}
           />
           <SubjectStat
             label="Weakest subject"
             value={
-              subj.weakest ? `${subj.weakest.short} · ${subj.weakest.avg}` : "—"
+              stats.weakest
+                ? `${stats.weakest.short} · ${stats.weakest.avg}`
+                : "—"
             }
             tone="warning"
           />

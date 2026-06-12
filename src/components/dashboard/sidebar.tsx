@@ -119,7 +119,7 @@ function visibleGroups(role: Role): NavGroup[] {
     items: g.items.filter((i) => {
       if (role === "admin") return true;
       if (role === "professor") return i.professor === true;
-      return !i.adminOnly; // writer
+      return false; // graduates/legacy roles never reach the dashboard shell
     }),
   })).filter((g) => g.items.length > 0);
 }

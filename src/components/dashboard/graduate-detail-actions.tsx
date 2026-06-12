@@ -20,6 +20,7 @@ import {
 } from "@/app/dashboard/graduates/actions";
 import { ConfirmDialog } from "@/components/dashboard/confirm-button";
 import { Button } from "@/components/ui/button";
+import { yearsLabel, yearsNoun } from "@/lib/expiry-label";
 
 // Every mutating action confirms through the same dialog before it applies.
 type PendingAction = {
@@ -34,10 +35,13 @@ export function GraduateDetailActions({
   id,
   lcn,
   status,
+  validityYears = 1,
 }: {
   id: string;
   lcn: string;
   status: "STUDENT" | "GRADUATE" | "ARCHIVED";
+  /** Org expiry policy: license validity period used in renewal copy. */
+  validityYears?: number;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -59,7 +63,9 @@ export function GraduateDetailActions({
     fd.set("id", id);
     startTransition(async () => {
       await renewGraduate(fd);
-      toast.success(`Renewed ${lcn} — expiry extended one year.`);
+      toast.success(
+        `Renewed ${lcn} — expiry extended ${yearsNoun(validityYears)}.`,
+      );
       router.refresh();
     });
   }
@@ -111,16 +117,15 @@ export function GraduateDetailActions({
           onClick={() =>
             setDialog({
               title: `Renew ${lcn}?`,
-              description:
-                "Extends the license one year past its current expiry; the current expiry becomes the latest re-certification.",
-              confirmLabel: "Renew +1 year",
+              description: `Extends the license ${yearsNoun(validityYears)} past its current expiry; the current expiry becomes the latest re-certification.`,
+              confirmLabel: `Renew +${yearsLabel(validityYears)}`,
               tone: "primary",
               run: renew,
             })
           }
           className="border-success/30 bg-success/10 text-success hover:bg-success/20"
         >
-          <CalendarPlus aria-hidden /> Renew +1 year
+          <CalendarPlus aria-hidden /> Renew +{yearsLabel(validityYears)}
         </Button>
       )}
 

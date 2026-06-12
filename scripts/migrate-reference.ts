@@ -93,7 +93,7 @@ function parseDate(v: string | null): Date | null {
 
 async function uploadPhoto(
   filePath: string,
-  lcn: string,
+  _lcn: string,
 ): Promise<string | undefined> {
   const buffer = readFileSync(filePath);
   const contentHash = createHash("sha256").update(buffer).digest("hex");

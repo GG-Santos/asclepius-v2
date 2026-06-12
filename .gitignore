@@ -24,6 +24,12 @@
 .DS_Store
 *.pem
 
+# local agent/runtime artifacts
+/.claude/
+/.codex-*.html
+/.codex-*.log
+/tmp/
+
 # debug
 npm-debug.log*
 yarn-debug.log*

@@ -22,16 +22,34 @@ config({ path: ".env.local" });
 const prisma = new PrismaClient();
 const auth = betterAuth({
   database: prismaAdapter(prisma, { provider: "mongodb" }),
-  emailAndPassword: { enabled: true, disableSignUp: false, minPasswordLength: 8 },
+  emailAndPassword: {
+    enabled: true,
+    disableSignUp: false,
+    minPasswordLength: 8,
+  },
   advanced: { database: { generateId: false } },
   secret: process.env.BETTER_AUTH_SECRET,
 });
 
-const ADMIN = { email: "review-admin@test.local", password: "ReviewPass123", name: "Review Admin" };
-const GRAD = { email: "review-grad@test.local", password: "ReviewPass123", name: "Review Graduate" };
+const ADMIN = {
+  email: "review-admin@test.local",
+  password: "ReviewPass123",
+  name: "Review Admin",
+};
+const GRAD = {
+  email: "review-grad@test.local",
+  password: "ReviewPass123",
+  name: "Review Graduate",
+};
 
-async function ensureAccount(acc: { email: string; password: string; name: string }) {
-  const existing = await prisma.user.findUnique({ where: { email: acc.email } });
+async function ensureAccount(acc: {
+  email: string;
+  password: string;
+  name: string;
+}) {
+  const existing = await prisma.user.findUnique({
+    where: { email: acc.email },
+  });
   if (existing) return existing.id;
   await auth.api.signUpEmail({ body: acc });
   const u = await prisma.user.findUnique({ where: { email: acc.email } });
@@ -71,7 +89,9 @@ async function main() {
   console.log("\n── Review accounts ready ─────────────────────────────");
   console.log(`ADMIN  ${ADMIN.email}  /  ${ADMIN.password}   → /login`);
   console.log(`GRAD   ${GRAD.email}  /  ${GRAD.password}   → /portal/login`);
-  console.log(`       linked to graduate LCN ${grad.lcn} (${grad.name ?? "unnamed"})`);
+  console.log(
+    `       linked to graduate LCN ${grad.lcn} (${grad.name ?? "unnamed"})`,
+  );
   console.log("──────────────────────────────────────────────────────\n");
 
   await prisma.$disconnect();

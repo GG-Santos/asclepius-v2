@@ -1,0 +1,150 @@
+{
+  "_comment": "FROZEN Wave-1 fixture: the pre-refactor layer stacks and overlay geometry of the three artifact renderers. scripts/check-template-parity.ts compares the template resolver's zero-config output against this file. Do not regenerate from current source. AMENDED 2026-06: license-front 05-bar.svg removed at the owner's request (deliberate design change, not drift).",
+  "certificate": {
+    "canvas": { "w": 6900, "h": 5209 },
+    "artBase": "/assets/svg/CertificateV2",
+    "layers": [
+      { "kind": "static", "file": "01-background.svg" },
+      { "kind": "static", "file": "02-main-logo-watermark.svg" },
+      { "kind": "static", "file": "03-secondary-logo.svg" },
+      { "kind": "static", "file": "04-tertiary-logo.svg" },
+      { "kind": "photo" },
+      { "kind": "static", "file": "06-training-center-name.svg" },
+      { "kind": "static", "file": "07-certificate-type.svg" },
+      { "kind": "static", "file": "08-to.svg" },
+      { "kind": "name" },
+      { "kind": "static", "file": "10-this.svg" },
+      { "kind": "static", "file": "11-completion-text.svg" },
+      { "kind": "static", "file": "12a-center-bar.svg" },
+      { "kind": "static", "file": "12b-training-text.svg" },
+      { "kind": "static", "file": "13-recognition-text.svg" },
+      { "kind": "date" },
+      { "kind": "static", "file": "15-position-1.svg" },
+      { "kind": "static", "file": "16-signatory-1.svg" },
+      { "kind": "signature", "file": "17-signature-1.svg", "slot": "one" },
+      { "kind": "static", "file": "18-position-2.svg" },
+      { "kind": "static", "file": "19-signatory-2.svg" },
+      { "kind": "signature", "file": "20-signature-2.svg", "slot": "two" },
+      { "kind": "static", "file": "21-position-3.svg" },
+      { "kind": "static", "file": "22-signatory-3.svg" },
+      { "kind": "signature", "file": "22b-signature-3.svg", "slot": "three" },
+      { "kind": "static", "file": "23-border-main.svg" },
+      { "kind": "static", "file": "24-border-triangle-left.svg" },
+      { "kind": "static", "file": "25-border-triangle-right.svg" },
+      { "kind": "static", "file": "26-border-top.svg" },
+      { "kind": "photo-watermark" },
+      { "kind": "static", "file": "28-border-liner.svg" },
+      { "kind": "static", "file": "29-border-banner.svg" },
+      { "kind": "static", "file": "30-main-logo-banner.svg" },
+      { "kind": "static", "file": "31-accrediation-logo-1.svg" },
+      { "kind": "static", "file": "32-watermark.svg" },
+      { "kind": "static", "file": "33-license-label.svg" },
+      { "kind": "lcn" },
+      { "kind": "qr" },
+      { "kind": "static", "file": "36-qr-logo.svg" },
+      { "kind": "warning", "file": "37-warning.svg" }
+    ],
+    "overlays": {
+      "photoRect": { "x": 261, "y": 1498, "w": 1200, "h": 1200 },
+      "photoWatermarkRect": { "x": 5098, "y": 3483, "w": 1675, "h": 1675 },
+      "qrRect": { "x": 790, "y": 3424, "w": 786, "h": 786 },
+      "name": {
+        "x": 3450,
+        "y": 2252.03,
+        "fill": "#1a1a1a",
+        "fontSize": 269,
+        "fontFamily": "'Copperplate Gothic Bold', Georgia, serif"
+      },
+      "body": {
+        "x": 3450,
+        "baselines": [3548.17, 3628.17, 3708.17],
+        "fill": "#1a1a1a",
+        "fontSize": 68,
+        "fontFamily": "'Lucida Calligraphy', 'Brush Script MT', cursive"
+      },
+      "lcn": {
+        "x": 611,
+        "y": 4517,
+        "fill": "#1a1a1a",
+        "fontSize": 200,
+        "fontFamily": "Arial, sans-serif"
+      }
+    }
+  },
+  "license-front": {
+    "canvas": { "w": 3450, "h": 2210 },
+    "artBase": "/assets/svg/LicenseV2/front",
+    "layers": [
+      { "kind": "static", "file": "01-background.svg" },
+      { "kind": "static", "file": "02-top-bar.svg" },
+      { "kind": "static", "file": "03-title.svg" },
+      { "kind": "static", "file": "04-subtitle.svg" },
+      { "kind": "static", "file": "06-address.svg" },
+      { "kind": "static", "file": "07-main-logo.svg" },
+      { "kind": "static", "file": "08-secondary-logo.svg" },
+      { "kind": "static", "file": "09-name-bar.svg" },
+      { "kind": "name" },
+      { "kind": "static", "file": "11-picture-border.svg" },
+      { "kind": "photo" },
+      { "kind": "static", "file": "13-license-text-bar.svg" },
+      { "kind": "static", "file": "13b-license-text.svg" },
+      { "kind": "static", "file": "14-license-number-bar.svg" },
+      { "kind": "lcn" },
+      { "kind": "static", "file": "16-training-bar.svg" },
+      { "kind": "static", "file": "17-training-text.svg" },
+      { "kind": "static", "file": "18-level-bar.svg" },
+      { "kind": "static", "file": "19-level-text.svg" },
+      { "kind": "static", "file": "20-date-bar.svg" },
+      { "kind": "static", "file": "21-star-of-life.svg" },
+      { "kind": "date-issued" },
+      { "kind": "date-validity" },
+      { "kind": "static", "file": "24-position-1.svg" },
+      { "kind": "static", "file": "25-signatory-1.svg" },
+      { "kind": "signature", "file": "26-signature-1.svg" },
+      { "kind": "warning", "file": "27-warning.svg" }
+    ],
+    "overlays": {
+      "photoRect": { "x": 1, "y": 129, "w": 1016, "h": 1014 },
+      "nameCenterX": 2244,
+      "nameBaseline": 1081,
+      "nameFill": "#000",
+      "lcn": { "x": 174.79, "y": 1443.15, "fill": "#000" },
+      "dateIssued": {
+        "x": 158.583,
+        "y": 1603.5,
+        "fill": "#000",
+        "fontSize": 68
+      },
+      "dateValidity": {
+        "x": 177.599,
+        "y": 1691.5,
+        "fill": "#000",
+        "fontSize": 68
+      }
+    }
+  },
+  "license-back": {
+    "canvas": { "w": 3450, "h": 2210 },
+    "artBase": "/assets/svg/LicenseV2/back",
+    "layers": [
+      { "kind": "static", "file": "01-background.svg" },
+      { "kind": "static", "file": "02-main-logo-watermark.svg" },
+      { "kind": "static", "file": "03-training-center-text.svg" },
+      { "kind": "static", "file": "04-certification-text.svg" },
+      { "kind": "static", "file": "05-objectives.svg" },
+      { "kind": "qr" },
+      { "kind": "static", "file": "07-qr-logo.svg" },
+      { "kind": "static", "file": "08-position-1.svg" },
+      { "kind": "static", "file": "09-signatory-1.svg" },
+      { "kind": "static", "file": "10-line-1.svg" },
+      { "kind": "signature", "file": "11-signature-1.svg", "slot": "one" },
+      { "kind": "static", "file": "12-position-2.svg" },
+      { "kind": "static", "file": "13-signatory-2.svg" },
+      { "kind": "static", "file": "14-line-2.svg" },
+      { "kind": "signature", "file": "15-signature-2.svg", "slot": "two" }
+    ],
+    "overlays": {
+      "qrRect": { "x": 2496, "y": 652, "w": 786, "h": 786 }
+    }
+  }
+}

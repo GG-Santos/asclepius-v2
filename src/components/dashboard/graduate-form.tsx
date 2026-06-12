@@ -16,13 +16,17 @@ import { deleteGraduate } from "@/app/dashboard/graduates/actions";
 import { BatchSelect } from "@/components/dashboard/batch-select";
 import { ConfirmDialog } from "@/components/dashboard/confirm-button";
 import { GradeCells } from "@/components/dashboard/grade-cells";
+import { SchemeGradeEntry } from "@/components/dashboard/scheme-grade-entry";
 import {
+  type PhotoStaging,
   type SaveState,
   StudentPhotoPanel,
 } from "@/components/dashboard/student-photo-panel";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
+import type { GradingScheme } from "@/lib/assessment-scheme";
+import { scoreRowsFor } from "@/lib/graduate";
 
 export type GraduateDefaults = {
   lcn?: string;
@@ -43,27 +47,23 @@ export type GraduateDefaults = {
   scorePAS?: string;
   scoreCCST?: string;
   scoreCCSM?: string;
+  bonusPoints?: string;
   ranking?: string;
   notes?: string;
   photoUrl?: string | null;
+  proficiencyRows?: unknown;
 };
 
-const SCORE_ROWS: {
-  weight: string;
-  label: string;
-  field: keyof GraduateDefaults;
-}[] = [
-  { weight: "10%", label: "Final Written Examination", field: "scoreFWE" },
-  {
-    weight: "15%",
-    label: "Situational Judgement Examination",
-    field: "scoreSJE",
-  },
-  { weight: "10%", label: "Equipment Proficiency", field: "scoreEP" },
-  { weight: "15%", label: "Patient Assessment Skills", field: "scorePAS" },
-  { weight: "25%", label: "Critical Case: Trauma", field: "scoreCCST" },
-  { weight: "25%", label: "Critical Case: Medical", field: "scoreCCSM" },
-];
+const SCORE_FIELDS = [
+  "scoreFWE",
+  "scoreSJE",
+  "scoreEP",
+  "scorePAS",
+  "scoreCCST",
+  "scoreCCSM",
+] as const satisfies readonly (keyof GraduateDefaults)[];
+
+type ScoreField = (typeof SCORE_FIELDS)[number];
 
 function Labeled({
   label,
@@ -95,6 +95,10 @@ export function GraduateForm({
   redirectTo = "/dashboard/graduates",
   lockLcn = false,
   deleteId,
+  validityYears = 1,
+  scheme = null,
+  granularDefaults = {},
+  bonusNote = "",
 }: {
   action: (prev: ActionState, formData: FormData) => Promise<ActionState>;
   defaults?: GraduateDefaults;
@@ -103,6 +107,16 @@ export function GraduateForm({
   redirectTo?: string;
   lockLcn?: boolean;
   deleteId?: string;
+  /** Org expiry policy: validity period shown in the expiration hint. */
+  validityYears?: number;
+  /**
+   * Batch grading scheme + linked-student raw scores: when present, grades
+   * are edited granularly per assessment (the six columns and bonus are
+   * recomputed server-side through the scheme) instead of entered directly.
+   */
+  scheme?: GradingScheme | null;
+  granularDefaults?: Record<string, string>;
+  bonusNote?: string;
 }) {
   const [state, formAction, pending] = useActionState(action, {});
   const router = useRouter();
@@ -116,22 +130,38 @@ export function GraduateForm({
   const [saveOpen, setSaveOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const isEdit = Boolean(deleteId);
-
-  const [scores, setScores] = useState<Record<string, string>>(() =>
-    Object.fromEntries(
-      SCORE_ROWS.map((r) => [r.field, (defaults[r.field] as string) ?? ""]),
-    ),
+  const [batchCode, setBatchCode] = useState(defaults.batchCode ?? "");
+  const [batchProficiencyRows, setBatchProficiencyRows] = useState(
+    defaults.proficiencyRows,
   );
+  const scoreRows = useMemo(
+    () => scoreRowsFor(batchCode, batchProficiencyRows),
+    [batchCode, batchProficiencyRows],
+  );
+
+  const [scores, setScores] = useState<Record<ScoreField, string>>(
+    () =>
+      Object.fromEntries(
+        SCORE_FIELDS.map((field) => [
+          field,
+          (defaults[field] as string | undefined) ?? "",
+        ]),
+      ) as Record<ScoreField, string>,
+  );
+  const [bonusPoints, setBonusPoints] = useState(defaults.bonusPoints ?? "");
   const total = useMemo(() => {
     // Scores are entered as already-weighted points (FWE ≤10 … CCSM ≤25); the
-    // Total Evaluation is their sum (≤100).
+    // Total Evaluation is their sum plus the signed bonus line.
     let sum = 0;
-    for (const r of SCORE_ROWS) {
-      const v = Number.parseFloat(scores[r.field]);
+    for (const row of scoreRows) {
+      const field = row.key as ScoreField;
+      const v = Number.parseFloat(scores[field]);
       if (!Number.isNaN(v)) sum += v;
     }
+    const bonus = Number.parseFloat(bonusPoints);
+    if (!Number.isNaN(bonus)) sum += bonus;
     return sum;
-  }, [scores]);
+  }, [scoreRows, scores, bonusPoints]);
 
   const saveState: SaveState = pending ? "saving" : state.ok ? "done" : "idle";
 
@@ -145,7 +175,23 @@ export function GraduateForm({
     if (state.error) toast.error(state.error);
   }, [state, router, successMessage, redirectTo]);
 
+  // Photo staging gate: saving while the scan/upload pipeline is in flight
+  // (or after it failed) would silently persist the record without its photo.
+  const [photoStaging, setPhotoStaging] = useState<PhotoStaging>("idle");
+
   function onSubmitIntercept(e: React.FormEvent<HTMLFormElement>) {
+    if (photoStaging === "busy") {
+      e.preventDefault();
+      toast.message("Photo is still uploading — save once it finishes.");
+      return;
+    }
+    if (photoStaging === "failed") {
+      e.preventDefault();
+      toast.error(
+        "The photo didn't attach. Retry the upload or remove the photo first.",
+      );
+      return;
+    }
     if (!confirmedRef.current) {
       e.preventDefault();
       setSaveOpen(true);
@@ -242,6 +288,7 @@ export function GraduateForm({
               currentUrl={defaults.photoUrl}
               saveState={saveState}
               persisted={Boolean(deleteId)}
+              onStagingChange={setPhotoStaging}
             />
           </div>
 
@@ -278,6 +325,10 @@ export function GraduateForm({
                 <BatchSelect
                   name="batchCode"
                   defaultValue={defaults.batchCode}
+                  onValueChange={(code, batch) => {
+                    setBatchCode(code);
+                    setBatchProficiencyRows(batch?.proficiencyRows ?? null);
+                  }}
                 />
               </Labeled>
 
@@ -325,7 +376,7 @@ export function GraduateForm({
                 <DatePicker
                   name="expirationRaw"
                   defaultValue={defaults.expirationRaw}
-                  placeholder="Aug 03, 2026 · in 1 year"
+                  placeholder={`Aug 03, 2026 · in ${validityYears} year${validityYears === 1 ? "" : "s"}`}
                 />
               </Labeled>
               <Labeled
@@ -348,70 +399,112 @@ export function GraduateForm({
               />
             </div>
 
-            {/* Proficiency table with split-digit grade entry */}
+            {/* Proficiency record: granular per-assessment entry when the
+                batch has a grading scheme and a linked student record; direct
+                six-column entry otherwise (legacy/manual records). */}
             <div>
               <h2 className="mb-2 font-semibold text-on-surface">
                 Over-All Proficiency Evaluation Record
               </h2>
-              <div className="overflow-hidden rounded-md border border-outline-variant/60">
-                <table className="w-full text-left text-xs text-on-surface">
-                  <thead className="bg-surface-container">
-                    <tr>
-                      <th className="w-20 border-outline-variant/60 border-b px-3 py-2 font-semibold">
-                        Total %
-                      </th>
-                      <th className="border-outline-variant/60 border-b px-3 py-2 font-semibold">
-                        Examination
-                      </th>
-                      <th className="border-outline-variant/60 border-b px-3 py-2 font-semibold">
-                        Grade
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {SCORE_ROWS.map((row) => (
-                      <tr key={row.field} className="even:bg-surface-low">
-                        <td className="border-outline-variant/60 border-r px-3 py-2">
-                          {row.weight}
+              {scheme ? (
+                <>
+                  <p className="mb-3 text-xs text-on-surface-variant">
+                    Scores are entered per assessment (raw points) and graded
+                    through the batch&apos;s assessment scheme — the six
+                    proficiency columns, bonus line, and Total Evaluation are
+                    recomputed on save.
+                  </p>
+                  <SchemeGradeEntry
+                    scheme={scheme}
+                    defaults={granularDefaults}
+                    defaultBonus={defaults.bonusPoints ?? ""}
+                    defaultBonusNote={bonusNote}
+                  />
+                </>
+              ) : (
+                <div className="overflow-hidden rounded-md border border-outline-variant/60">
+                  <table className="w-full text-left text-xs text-on-surface">
+                    <thead className="bg-surface-container">
+                      <tr>
+                        <th className="w-20 border-outline-variant/60 border-b px-3 py-2 font-semibold">
+                          Total %
+                        </th>
+                        <th className="border-outline-variant/60 border-b px-3 py-2 font-semibold">
+                          Examination
+                        </th>
+                        <th className="border-outline-variant/60 border-b px-3 py-2 font-semibold">
+                          Grade
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {scoreRows.map((row) => {
+                        const field = row.key as ScoreField;
+                        return (
+                          <tr key={field} className="even:bg-surface-low">
+                            <td className="border-outline-variant/60 border-r px-3 py-2">
+                              {row.weight}
+                            </td>
+                            <td className="border-outline-variant/60 border-r px-3 py-2">
+                              {row.label}
+                            </td>
+                            <td className="px-3 py-2">
+                              <GradeCells
+                                name={field}
+                                defaultValue={defaults[field]}
+                                onValue={(v) =>
+                                  setScores((s) => ({ ...s, [field]: v }))
+                                }
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      <tr className="even:bg-surface-low">
+                        <td className="border-outline-variant/60 border-r px-3 py-2 text-on-surface-variant">
+                          —
                         </td>
                         <td className="border-outline-variant/60 border-r px-3 py-2">
-                          {row.label}
+                          Bonus points
+                          <span className="ml-2 text-[10px] text-on-surface-variant">
+                            signed; own line, not part of any category
+                          </span>
                         </td>
                         <td className="px-3 py-2">
-                          <GradeCells
-                            name={row.field}
-                            defaultValue={
-                              defaults[row.field] as string | undefined
-                            }
-                            onValue={(v) =>
-                              setScores((s) => ({ ...s, [row.field]: v }))
-                            }
+                          <Input
+                            name="bonusPoints"
+                            type="number"
+                            step="0.01"
+                            value={bonusPoints}
+                            onChange={(e) => setBonusPoints(e.target.value)}
+                            placeholder="0"
+                            className="h-8 w-28 font-mono text-xs"
                           />
                         </td>
                       </tr>
-                    ))}
-                  </tbody>
-                  <tfoot className="border-outline-variant/60 border-t bg-surface-highest font-semibold">
-                    <tr>
-                      <th className="border-outline-variant/60 border-r px-3 py-2 text-left">
-                        100%
-                      </th>
-                      <th className="border-outline-variant/60 border-r px-3 py-2 text-left">
-                        Total Evaluation
-                      </th>
-                      <th className="px-3 py-2 text-left">
-                        {Math.round(total * 100) / 100}%
-                      </th>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
+                    </tbody>
+                    <tfoot className="border-outline-variant/60 border-t bg-surface-highest font-semibold">
+                      <tr>
+                        <th className="border-outline-variant/60 border-r px-3 py-2 text-left">
+                          100%
+                        </th>
+                        <th className="border-outline-variant/60 border-r px-3 py-2 text-left">
+                          Total Evaluation
+                        </th>
+                        <th className="px-3 py-2 text-left">
+                          {Math.round(total * 100) / 100}%
+                        </th>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )}
             </div>
 
             <p className="text-xs text-on-surface-variant">
               Ranking is computed automatically from the total score (per batch
-              and globally). Legacy status is applied automatically to batches 5
-              and below.
+              and globally). Legacy status applies automatically to Batch 5
+              only; Batch 11 and 16 records are archived (records only).
             </p>
           </div>
         </div>

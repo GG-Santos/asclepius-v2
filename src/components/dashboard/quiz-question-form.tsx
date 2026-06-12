@@ -2,7 +2,10 @@
 
 import { Pencil, Plus, Trash2, X } from "lucide-react";
 import { useState } from "react";
-import { saveQuestion } from "@/app/dashboard/courses/actions";
+import {
+  saveBankQuestion,
+  saveQuestion,
+} from "@/app/dashboard/courses/actions";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -30,13 +33,19 @@ export type QuestionValues = {
 
 const SINGLE_ANSWER = new Set(["MULTIPLE_CHOICE", "TRUE_FALSE"]);
 
+/**
+ * Question authoring dialog for quizzes AND question banks: pass `quizId` +
+ * `courseId` for a quiz question, or `bankId` for a bank question.
+ */
 export function QuizQuestionForm({
   courseId,
   quizId,
+  bankId,
   question,
 }: {
-  courseId: string;
-  quizId: string;
+  courseId?: string;
+  quizId?: string;
+  bankId?: string;
   question?: QuestionValues;
 }) {
   const [open, setOpen] = useState(false);
@@ -105,12 +114,18 @@ export function QuizQuestionForm({
           </DialogTitle>
         </DialogHeader>
         <form
-          action={saveQuestion}
+          action={bankId ? saveBankQuestion : saveQuestion}
           onSubmit={() => setOpen(false)}
           className="space-y-4"
         >
-          <input type="hidden" name="courseId" value={courseId} />
-          <input type="hidden" name="quizId" value={quizId} />
+          {bankId ? (
+            <input type="hidden" name="bankId" value={bankId} />
+          ) : (
+            <>
+              <input type="hidden" name="courseId" value={courseId} />
+              <input type="hidden" name="quizId" value={quizId} />
+            </>
+          )}
           {editing && <input type="hidden" name="id" value={question?.id} />}
           <input type="hidden" name="type" value={type} />
 

@@ -1,0 +1,46 @@
+---
+title: Courses
+description: Experimental course authoring and graduate learning tools.
+---
+
+Last reviewed: 2026-06-12.
+
+Courses is the experimental learning area. It can host continuing-education
+content, modules, pages, files, links, videos, quizzes, rosters, and completion
+certificates. It does not change Registry credential validity.
+
+<OpenRoute href="/dashboard/courses">Open Courses</OpenRoute>
+
+## Current Scope
+
+| Area | Route | Status |
+| --- | --- | --- |
+| Course list | `/dashboard/courses` | Experimental. |
+| New course | `/dashboard/courses/new` | Experimental. |
+| Course editor | `/dashboard/courses/[id]` | Experimental. |
+| Preview | `/dashboard/courses/[id]/preview` | Experimental. |
+| Roster | `/dashboard/courses/[id]/roster` | Experimental. |
+| Question banks | `/dashboard/courses/banks` | Experimental. |
+
+## Course Lifecycle
+
+| Stage | Admin action | Graduate visibility |
+| --- | --- | --- |
+| Draft | Create the shell and organize curriculum. | Not visible. |
+| Preview | Test published modules and items as a graduate. | Not visible. |
+| Published | Publish the course after the checklist passes. | Can appear in the graduate portal. |
+| Roster | Enroll graduates and review progress. | Enrolled graduates see progress. |
+| Completed | Keep completion and CE certificate records. | Completion state remains available. |
+
+## Troubleshooting
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| Course does not appear in preview | No published modules or no published items. | Publish at least one module and one item, then preview again. |
+| Course does not appear in portal | Course is draft, archived, or the graduate cannot access the portal. | Publish the course and verify graduate credential/account state. |
+| Item is locked | Sequential progress, prerequisites, or unlock date prevents access. | Check module settings and item completion requirements. |
+
+<DocNote title="Courses is separate from Registry" tone="info">
+Courses can teach or certify continuing education. It does not renew, archive,
+delete, or validate EMT credentials.
+</DocNote>

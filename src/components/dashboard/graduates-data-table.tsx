@@ -9,7 +9,6 @@ import {
   Pencil,
   Trash2,
 } from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo } from "react";
@@ -20,14 +19,21 @@ import {
 } from "@/app/dashboard/graduates/actions";
 import { ConfirmButton } from "@/components/dashboard/confirm-button";
 import type { GraduateRow } from "@/components/dashboard/graduates-table";
+import {
+  TablePhotoSelect,
+  TableSelectPageButton,
+} from "@/components/dashboard/table-photo-selector";
 import { Badge } from "@/components/ui/badge";
+import { buttonVariants } from "@/components/ui/button";
 import {
   DataTable,
   FilterHeader,
   SortableHeader,
 } from "@/components/ui/data-table";
+import { yearsLabel, yearsNoun } from "@/lib/expiry-label";
 import type { VerificationState } from "@/lib/graduate";
 import { medalFor } from "@/lib/ranking";
+import { cn } from "@/lib/utils";
 
 const STATE_BADGE: Record<
   VerificationState,
@@ -43,6 +49,14 @@ const STATE_OPTIONS = [
   { value: "expired", label: "Expired" },
   { value: "archived", label: "Archived" },
 ];
+
+const SCOPES = [
+  { value: "GRADUATE", label: "Graduates" },
+  { value: "ARCHIVED", label: "Archived" },
+  { value: "ALL", label: "All" },
+] as const;
+
+type GraduateScope = (typeof SCOPES)[number]["value"];
 
 const setFilter: FilterFn<GraduateRow> = (row, id, value) => {
   const set = value as string[] | undefined;
@@ -61,7 +75,16 @@ const searchFilter: FilterFn<GraduateRow> = (row, _id, value) => {
   );
 };
 
-export function GraduatesDataTable({ rows }: { rows: GraduateRow[] }) {
+export function GraduatesDataTable({
+  rows,
+  scope = "GRADUATE",
+  validityYears = 1,
+}: {
+  rows: GraduateRow[];
+  scope?: GraduateScope;
+  /** Org expiry policy: license validity period used in renewal copy. */
+  validityYears?: number;
+}) {
   const router = useRouter();
 
   const batchOptions = useMemo(() => {
@@ -76,26 +99,58 @@ export function GraduatesDataTable({ rows }: { rows: GraduateRow[] }) {
     return [...set].sort().map((p) => ({ value: p, label: p }));
   }, [rows]);
 
+  async function bulkRenew(selectedRows: GraduateRow[]) {
+    for (const row of selectedRows.filter((r) => r.status === "GRADUATE")) {
+      const fd = new FormData();
+      fd.set("id", row.id);
+      await renewGraduate(fd);
+    }
+    router.refresh();
+  }
+
+  async function bulkStatus(selectedRows: GraduateRow[], status: string) {
+    for (const row of selectedRows) {
+      const fd = new FormData();
+      fd.set("id", row.id);
+      fd.set("status", status);
+      await setGraduateStatus(fd);
+    }
+    router.refresh();
+  }
+
+  async function bulkDelete(selectedRows: GraduateRow[]) {
+    for (const row of selectedRows) {
+      const fd = new FormData();
+      fd.set("id", row.id);
+      await deleteGraduate(fd);
+    }
+    router.refresh();
+  }
+
   const columns: ColumnDef<GraduateRow, unknown>[] = [
     {
       id: "photo",
-      header: () => <span className="sr-only">Photo</span>,
+      header: ({ table }) => {
+        const checked = table.getIsAllPageRowsSelected();
+        return (
+          <TableSelectPageButton
+            checked={checked}
+            mixed={!checked && table.getIsSomePageRowsSelected()}
+            onToggle={() => table.toggleAllPageRowsSelected(!checked)}
+            label="Select visible graduates"
+          />
+        );
+      },
       enableSorting: false,
       enableHiding: false,
-      cell: ({ row }) =>
-        row.original.photoUrl ? (
-          <Image
-            src={row.original.photoUrl}
-            alt=""
-            width={36}
-            height={45}
-            className="h-11 w-9 rounded object-cover"
-          />
-        ) : (
-          <div className="flex h-11 w-9 items-center justify-center rounded bg-surface-highest text-[10px] text-on-surface-variant">
-            —
-          </div>
-        ),
+      cell: ({ row }) => (
+        <TablePhotoSelect
+          src={row.original.photoUrl}
+          label={row.original.name}
+          selected={row.getIsSelected()}
+          onToggle={() => row.toggleSelected(!row.getIsSelected())}
+        />
+      ),
     },
     {
       accessorKey: "name",
@@ -198,13 +253,13 @@ export function GraduatesDataTable({ rows }: { rows: GraduateRow[] }) {
           <div className="flex items-center gap-1">
             {g.status === "GRADUATE" && (
               <ConfirmButton
-                buttonTitle="Renew license (+1 year)"
+                buttonTitle={`Renew license (+${yearsLabel(validityYears)})`}
                 className="rounded p-1.5 text-on-surface-variant transition-colors hover:bg-success/10 hover:text-success"
                 title={`Renew ${g.lcn}?`}
-                description="Extends the license one year past its current expiry. The current expiry date becomes the latest re-certification."
-                confirmLabel="Renew +1 year"
+                description={`Extends the license ${yearsNoun(validityYears)} past its current expiry. The current expiry date becomes the latest re-certification.`}
+                confirmLabel={`Renew +${yearsLabel(validityYears)}`}
                 tone="primary"
-                successMessage={`Renewed ${g.lcn} — expiry extended one year.`}
+                successMessage={`Renewed ${g.lcn} — expiry extended ${yearsNoun(validityYears)}.`}
                 onConfirm={async () => {
                   const fd = new FormData();
                   fd.set("id", g.id);
@@ -291,9 +346,101 @@ export function GraduatesDataTable({ rows }: { rows: GraduateRow[] }) {
     <DataTable
       columns={columns}
       data={rows}
+      getRowId={(row) => row.id}
+      enableRowSelection
+      selectionToolbar={(selectedRows, clearSelection) => {
+        const renewable = selectedRows.filter((r) => r.status === "GRADUATE");
+        const restoreMode = selectedRows.every((r) => r.status === "ARCHIVED");
+        const nextStatus = restoreMode ? "GRADUATE" : "ARCHIVED";
+        return (
+          <>
+            <ConfirmButton
+              buttonTitle="Bulk renew"
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+              disabled={renewable.length === 0}
+              title={`Renew ${renewable.length} selected record${renewable.length === 1 ? "" : "s"}?`}
+              description={`Extends each selected active graduate by ${yearsNoun(validityYears)}. Archived records are skipped.`}
+              confirmLabel={`Renew +${yearsLabel(validityYears)}`}
+              tone="primary"
+              successMessage={`Renewed ${renewable.length} record${renewable.length === 1 ? "" : "s"}.`}
+              onConfirm={async () => {
+                await bulkRenew(selectedRows);
+                clearSelection();
+              }}
+            >
+              <CalendarPlus aria-hidden />
+              Renew
+            </ConfirmButton>
+            <ConfirmButton
+              buttonTitle={restoreMode ? "Bulk restore" : "Bulk archive"}
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+              title={`${restoreMode ? "Restore" : "Archive"} ${selectedRows.length} selected record${selectedRows.length === 1 ? "" : "s"}?`}
+              description={
+                restoreMode
+                  ? "Moves the selected archived records back into the active graduates list."
+                  : "Moves the selected records out of the active graduates list. You can restore them later."
+              }
+              confirmLabel={restoreMode ? "Restore" : "Archive"}
+              tone="primary"
+              successMessage={`${restoreMode ? "Restored" : "Archived"} ${selectedRows.length} record${selectedRows.length === 1 ? "" : "s"}.`}
+              onConfirm={async () => {
+                await bulkStatus(selectedRows, nextStatus);
+                clearSelection();
+              }}
+            >
+              {restoreMode ? (
+                <ArchiveRestore aria-hidden />
+              ) : (
+                <Archive aria-hidden />
+              )}
+              {restoreMode ? "Restore" : "Archive"}
+            </ConfirmButton>
+            <ConfirmButton
+              buttonTitle="Bulk delete"
+              className={cn(
+                buttonVariants({ variant: "destructive", size: "sm" }),
+              )}
+              title={`Delete ${selectedRows.length} selected record${selectedRows.length === 1 ? "" : "s"}?`}
+              description="This permanently deletes the selected graduate records and their public verification pages. This cannot be undone."
+              successMessage={`Deleted ${selectedRows.length} record${selectedRows.length === 1 ? "" : "s"}.`}
+              onConfirm={async () => {
+                await bulkDelete(selectedRows);
+                clearSelection();
+              }}
+            >
+              <Trash2 aria-hidden />
+              Delete
+            </ConfirmButton>
+          </>
+        );
+      }}
       noun="record"
       searchPlaceholder="Search name, license number, or batch…"
       globalFilterFn={searchFilter}
+      toolbar={
+        <nav
+          aria-label="Record status"
+          className="flex h-11 items-center gap-1 rounded-md border border-outline-variant/60 bg-card p-1 text-xs font-semibold dark:border-white/[0.08]"
+        >
+          {SCOPES.map((tab) => {
+            const active = scope === tab.value;
+            return (
+              <Link
+                key={tab.value}
+                href={`/dashboard/graduates?status=${tab.value}`}
+                aria-current={active ? "page" : undefined}
+                className={
+                  active
+                    ? "flex h-9 items-center rounded px-3 text-accent bg-accent/10"
+                    : "flex h-9 items-center rounded px-3 text-on-surface-variant hover:text-on-surface"
+                }
+              >
+                {tab.label}
+              </Link>
+            );
+          })}
+        </nav>
+      }
       columnLabels={{
         name: "Name",
         lcn: "License No.",

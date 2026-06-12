@@ -105,7 +105,8 @@ async function main() {
         quizId: quiz.id,
         position: 0,
         type: "MULTIPLE_CHOICE",
-        prompt: "Which finding most strongly indicates a partially obstructed airway?",
+        prompt:
+          "Which finding most strongly indicates a partially obstructed airway?",
         points: 1,
         options: [
           { id: "o0", text: "Inspiratory stridor", correct: true },
@@ -118,7 +119,8 @@ async function main() {
         quizId: quiz.id,
         position: 1,
         type: "TRUE_FALSE",
-        prompt: "A nasopharyngeal airway is appropriate for a patient with an intact gag reflex.",
+        prompt:
+          "A nasopharyngeal airway is appropriate for a patient with an intact gag reflex.",
         points: 1,
         options: [
           { id: "o0", text: "True", correct: true },
@@ -142,7 +144,8 @@ async function main() {
         quizId: quiz.id,
         position: 3,
         type: "SHORT_ANSWER",
-        prompt: "What three-letter adjunct is measured nostril-to-earlobe before insertion?",
+        prompt:
+          "What three-letter adjunct is measured nostril-to-earlobe before insertion?",
         points: 1,
         correctAnswers: ["NPA", "nasopharyngeal airway"],
       },

@@ -2,6 +2,7 @@ import { DocsLayout } from "fumadocs-ui/layouts/docs";
 import { RootProvider } from "fumadocs-ui/provider/next";
 import { cookies } from "next/headers";
 import { AppSidebar } from "@/components/dashboard/app-sidebar";
+import { AnimatedThemeToggler } from "@/components/ui/animated-theme-toggler";
 import {
   SidebarInset,
   SidebarProvider,
@@ -34,9 +35,14 @@ export default async function DocsRootLayout({
           pageTree={source.pageTree}
         />
         <SidebarInset>
-          <header className="flex h-16 items-center gap-2 border-b border-outline-variant/60 bg-card px-4 md:px-6">
-            <SidebarTrigger />
-            <span className="font-semibold text-on-surface">Documentation</span>
+          <header className="flex h-16 items-center justify-between gap-3 border-b border-outline-variant/60 bg-card px-4 md:px-6">
+            <div className="flex items-center gap-2">
+              <SidebarTrigger />
+              <span className="font-semibold text-on-surface">
+                Documentation
+              </span>
+            </div>
+            <AnimatedThemeToggler />
           </header>
           <DocsLayout
             tree={source.pageTree}

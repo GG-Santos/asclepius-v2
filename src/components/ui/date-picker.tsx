@@ -2,7 +2,7 @@
 
 import { format } from "date-fns";
 import { CalendarDays } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Calendar } from "@/components/ui/calendar";
 import { Input } from "@/components/ui/input";
 import {
@@ -17,6 +17,16 @@ import { cn } from "@/lib/utils";
 /** Stored/display format — matches existing registry raw strings and is
  *  parseable by parseLooseDate on the server. */
 const DISPLAY = "MMM dd, yyyy";
+const ISO = "yyyy-MM-dd";
+
+function outputForDate(parsed: Date, outputFormat: "display" | "iso"): string {
+  return format(parsed, outputFormat === "iso" ? ISO : DISPLAY);
+}
+
+function textForDate(raw?: string): string {
+  const parsed = parseLooseDate(raw ?? null);
+  return parsed ? format(parsed, DISPLAY) : (raw ?? "");
+}
 
 /* ── natural-language parsing (ported from the reference date picker) ───── */
 
@@ -162,44 +172,66 @@ export function parseNaturalDate(raw: string): Date | null {
  */
 export function DatePicker({
   name,
+  value: controlledValue,
   defaultValue,
   placeholder = "e.g. Aug 03, 2026 · today · in 1 year",
   className,
   disabled,
+  outputFormat = "display",
+  onValueChange,
 }: {
-  name: string;
+  name?: string;
+  value?: string;
   defaultValue?: string;
   placeholder?: string;
   className?: string;
   disabled?: boolean;
+  outputFormat?: "display" | "iso";
+  onValueChange?: (value: string) => void;
 }) {
-  const initial = parseLooseDate(defaultValue ?? null);
-  const [text, setText] = useState(defaultValue ?? "");
-  const [value, setValue] = useState(defaultValue ?? "");
+  const initialValue = controlledValue ?? defaultValue ?? "";
+  const initial = parseLooseDate(initialValue);
+  const [text, setText] = useState(() => textForDate(initialValue));
+  const [value, setValue] = useState(() =>
+    initial ? outputForDate(initial, outputFormat) : initialValue,
+  );
   const [date, setDate] = useState<Date | undefined>(initial ?? undefined);
   const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (controlledValue === undefined) return;
+    const parsed = parseLooseDate(controlledValue);
+    setDate(parsed ?? undefined);
+    setText(parsed ? format(parsed, DISPLAY) : controlledValue);
+    setValue(parsed ? outputForDate(parsed, outputFormat) : controlledValue);
+  }, [controlledValue, outputFormat]);
 
   function commit(input: string) {
     const trimmed = input.trim();
     if (!trimmed) {
       setValue("");
       setDate(undefined);
+      onValueChange?.("");
       return;
     }
     const parsed = parseNaturalDate(trimmed);
     if (!parsed) return; // leave the text as typed; submit keeps last good value
     const display = format(parsed, DISPLAY);
+    const next = outputForDate(parsed, outputFormat);
     setDate(parsed);
     setText(display);
-    setValue(display);
+    setValue(next);
+    onValueChange?.(next);
   }
 
   function pick(picked: Date | undefined) {
     if (!picked) return;
     const display = format(picked, DISPLAY);
+    const next = outputForDate(picked, outputFormat);
     setDate(picked);
     setText(display);
-    setValue(display);
+    setValue(next);
+    onValueChange?.(next);
     setOpen(false);
   }
 
@@ -208,7 +240,7 @@ export function DatePicker({
       <PopoverAnchor asChild>
         <div className={cn("relative w-full", className)}>
           {/* What the form actually submits. */}
-          <input type="hidden" name={name} value={value} />
+          {name && <input type="hidden" name={name} value={value} />}
           <Input
             type="text"
             value={text}

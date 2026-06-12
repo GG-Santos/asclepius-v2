@@ -17,7 +17,7 @@ const createStaffSchema = z.object({
   name: z.string().trim().min(1, "Name is required"),
   email: z.string().trim().toLowerCase().email("Enter a valid email"),
   password: z.string().min(8, "At least 8 characters"),
-  role: z.enum(["admin", "writer", "professor"]),
+  role: z.enum(["admin", "professor"]),
 });
 
 export async function createStaff(
@@ -58,7 +58,7 @@ export async function setStaffRole(formData: FormData): Promise<void> {
   const session = await requireAdmin();
   const id = String(formData.get("id") ?? "");
   const role = String(formData.get("role") ?? "");
-  if (!id || !["admin", "writer", "professor"].includes(role)) return;
+  if (!id || !["admin", "professor", "graduate"].includes(role)) return;
 
   // Never let an admin demote themselves (avoids self-lockout).
   if (id === session.user.id) return;
@@ -69,7 +69,19 @@ export async function setStaffRole(formData: FormData): Promise<void> {
     if (target?.role === "admin" && admins <= 1) return;
   }
 
+  const target = await prisma.user.findUnique({ where: { id } });
   await prisma.user.update({ where: { id }, data: { role } });
+  // Reassigning a legacy writer: their authored institutional posts move to
+  // the acting admin (an ex-writer turned graduate must not keep edit power
+  // over public content), and active sessions are purged so the new role
+  // takes effect immediately.
+  if (target?.role === "writer") {
+    await prisma.blogPost.updateMany({
+      where: { authorId: id },
+      data: { authorId: session.user.id },
+    });
+    await prisma.session.deleteMany({ where: { userId: id } });
+  }
   revalidatePath("/dashboard/staff");
 }
 
@@ -77,7 +89,7 @@ const updateStaffSchema = z.object({
   id: z.string().min(1),
   name: z.string().trim().min(1, "Name is required"),
   email: z.string().trim().toLowerCase().email("Enter a valid email"),
-  role: z.enum(["admin", "writer", "professor"]),
+  role: z.enum(["admin", "professor", "graduate"]),
 });
 
 /** Edit a staff member's name, email, and role in one action. */
@@ -118,6 +130,15 @@ export async function updateStaff(
     where: { id },
     data: { name, email, role: nextRole },
   });
+  // Legacy writer converted: move authored posts to the acting admin and
+  // purge sessions (same rule as setStaffRole).
+  if (target.role === "writer") {
+    await prisma.blogPost.updateMany({
+      where: { authorId: id },
+      data: { authorId: session.user.id },
+    });
+    await prisma.session.deleteMany({ where: { userId: id } });
+  }
   revalidatePath("/dashboard/staff");
   return { ok: true };
 }

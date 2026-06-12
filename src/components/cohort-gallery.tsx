@@ -29,7 +29,7 @@ export function CohortGallery({
               {/* biome-ignore lint/performance/noImgElement: admin-curated media on arbitrary domains */}
               <img
                 src={url}
-                alt={`${cohortName} gallery photo ${i + 1}`}
+                alt={`${cohortName} gallery item ${i + 1}`}
                 loading="lazy"
                 className="aspect-[4/3] w-full object-cover transition-transform duration-200 group-hover:scale-[1.03]"
               />
@@ -52,7 +52,7 @@ export function CohortGallery({
             // biome-ignore lint/performance/noImgElement: admin-curated media on arbitrary domains
             <img
               src={images[openIndex]}
-              alt={`${cohortName} gallery photo ${openIndex + 1}`}
+              alt={`${cohortName} gallery item ${openIndex + 1}`}
               className="max-h-[85svh] w-full rounded-xl object-contain shadow-[var(--shadow-clinical-md)]"
             />
           )}

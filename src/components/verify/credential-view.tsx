@@ -4,11 +4,13 @@ import { PublicHeader } from "@/components/public-header";
 import { Badge } from "@/components/ui/badge";
 import { CredentialArtifacts } from "@/components/verify/credential-artifacts";
 import { ShareLinkButton } from "@/components/verify/share-link-button";
+import type { ResolvedTemplate } from "@/lib/artifact-template/resolve";
 import {
   type GraduateWithPhoto,
   rankingLabel,
-  SCORE_ROWS,
+  type ScoreRow,
   scoreCompleteness,
+  scoreRowsFor,
   scoreTotal,
 } from "@/lib/graduate";
 
@@ -40,6 +42,9 @@ export function CredentialView({
   certQrDataUrl = null,
   manageHref = null,
   batch = null,
+  template,
+  testimonial = null,
+  scoreRows: providedScoreRows,
 }: {
   g: GraduateWithPhoto;
   name: string;
@@ -48,8 +53,15 @@ export function CredentialView({
   manageHref?: string | null;
   /** Cohort crest shown in the public credential rail. */
   batch?: CohortBadge | null;
+  /** Org artifact template (server-resolved); omitted = built-in artwork. */
+  template?: ResolvedTemplate;
+  /** The graduate's approved testimonial, shown on their public page. */
+  testimonial?: { quote: string; rating: number } | null;
+  /** Batch-specific proficiency display rows. */
+  scoreRows?: ScoreRow[];
 }) {
   const total = scoreTotal(g);
+  const scoreRows = providedScoreRows ?? scoreRowsFor(g.batchCode);
   const { present } = scoreCompleteness(g);
   const rank = rankingLabel(g.ranking);
   const remaining = remainingLabel(g.expiresAt ?? null);
@@ -147,11 +159,38 @@ export function CredentialView({
                 qrDataUrl={qrDataUrl}
                 certQrDataUrl={certQrDataUrl}
                 batch={batch}
+                template={template}
               />
             </div>
 
             {/* Right: profile + scores */}
             <div className="space-y-6 p-5 md:w-2/3">
+              {testimonial && (
+                <figure className="rounded-lg border border-outline-variant/60 bg-surface-low p-4 dark:border-white/[0.07] dark:bg-white/[0.02]">
+                  <div
+                    className="mb-1.5 flex items-center gap-0.5 text-warning"
+                    role="img"
+                    aria-label={`Rated ${testimonial.rating} out of 5 stars`}
+                  >
+                    {Array.from({ length: testimonial.rating }).map((_, i) => (
+                      <svg
+                        key={`star-${i + 1}`}
+                        viewBox="0 0 24 24"
+                        className="size-3.5 fill-current"
+                        aria-hidden="true"
+                      >
+                        <path d="M12 2l2.9 6.3 6.9.8-5.1 4.7 1.4 6.8L12 17.2 5.9 20.6l1.4-6.8L2.2 9.1l6.9-.8L12 2z" />
+                      </svg>
+                    ))}
+                  </div>
+                  <blockquote className="text-sm italic text-on-surface">
+                    "{testimonial.quote}"
+                  </blockquote>
+                  <figcaption className="mt-1.5 text-xs text-on-surface-variant">
+                    — {name}, in their own words
+                  </figcaption>
+                </figure>
+              )}
               <div>
                 <h2 className="mb-3 font-semibold text-on-surface">
                   Profile Information
@@ -215,7 +254,7 @@ export function CredentialView({
                         </tr>
                       </thead>
                       <tbody>
-                        {SCORE_ROWS.map((row) => {
+                        {scoreRows.map((row) => {
                           const v = g[row.key];
                           return (
                             <tr
@@ -232,6 +271,20 @@ export function CredentialView({
                             </tr>
                           );
                         })}
+                        {typeof g.bonusPoints === "number" &&
+                          g.bonusPoints !== 0 && (
+                            <tr className="odd:bg-transparent even:bg-white/[0.025] dark:odd:bg-transparent dark:even:bg-white/[0.025]">
+                              <td className="px-3 py-2 text-on-surface-variant">
+                                —
+                              </td>
+                              <td className="px-3 py-2">Bonus points</td>
+                              <td className="px-3 py-2 font-mono">
+                                {g.bonusPoints > 0
+                                  ? `+${g.bonusPoints}`
+                                  : g.bonusPoints}
+                              </td>
+                            </tr>
+                          )}
                       </tbody>
                       <tfoot>
                         <tr className="bg-surface-highest font-semibold text-on-surface dark:bg-white/[0.04] dark:border-t dark:border-white/[0.08]">

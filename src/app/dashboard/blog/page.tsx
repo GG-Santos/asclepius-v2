@@ -7,10 +7,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/session";
+import { requireAdmin } from "@/lib/session";
 
 export default async function BlogDashboardPage() {
-  await requireUser();
+  await requireAdmin();
 
   const posts = await prisma.blogPost.findMany({
     include: { author: { select: { name: true } } },

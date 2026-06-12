@@ -31,15 +31,25 @@ export function batchNumber(batchCode?: string | null): number | null {
 }
 
 /**
- * Batches 16 and below are legacy: scores were manually computed and entered.
- * Batch 17+ uses the student promotion flow where scores are computed automatically.
+ * Batch 5 is the only legacy batch: its grade book has no per-assessment
+ * student scores, only the final certificate values. Every later batch has
+ * full student grades imported from the official grade book.
  */
 export function isLegacyBatch(batchCode?: string | null): boolean {
-  const n = batchNumber(batchCode);
-  return n !== null && n <= 16;
+  return batchNumber(batchCode) === 5;
 }
 
-const SCORE_KEYS = [
+/**
+ * Records-only batches (11 — Asian Hospital, 16 — Noah Medical Center): kept
+ * in the registry for record purposes but archived — excluded from rankings
+ * and analytics, hidden from public verification, not eligible for renewal.
+ */
+export function isRecordsOnlyBatch(batchCode?: string | null): boolean {
+  const n = batchNumber(batchCode);
+  return n === 11 || n === 16;
+}
+
+export const SCORE_KEYS = [
   "scoreFWE",
   "scoreSJE",
   "scoreEP",
@@ -48,6 +58,8 @@ const SCORE_KEYS = [
   "scoreCCSM",
 ] as const;
 
+export type ScoreKey = (typeof SCORE_KEYS)[number];
+
 /**
  * Total Evaluation (0–100). The six proficiency scores are stored as already-
  * weighted points — FWE/EP up to 10, SJE/PAS up to 15, CCST/CCSM up to 25 —
@@ -55,7 +67,9 @@ const SCORE_KEYS = [
  * null when no scores are recorded; partial records sum the points present.
  */
 export function scoreTotal(
-  g: Pick<Graduate, (typeof SCORE_KEYS)[number]>,
+  g: Pick<Graduate, (typeof SCORE_KEYS)[number]> & {
+    bonusPoints?: number | null;
+  },
 ): number | null {
   let sum = 0;
   let present = 0;
@@ -67,7 +81,8 @@ export function scoreTotal(
     }
   }
   if (present === 0) return null;
-  return Math.round(sum * 100) / 100;
+  // Bonus/reconciliation points are their own line: Total = six + bonus.
+  return Math.round((sum + (g.bonusPoints ?? 0)) * 100) / 100;
 }
 
 /** Count of the six scores that are populated (for completeness display). */
@@ -105,11 +120,13 @@ export function rankingLabel(ranking?: number | null): {
   }
 }
 
-export const SCORE_ROWS: {
-  key: (typeof SCORE_KEYS)[number];
+export type ScoreRow = {
+  key: ScoreKey;
   weight: string;
   label: string;
-}[] = [
+};
+
+export const SCORE_ROWS: ScoreRow[] = [
   { key: "scoreFWE", weight: "10%", label: "Final Written Examination" },
   {
     key: "scoreSJE",
@@ -121,6 +138,72 @@ export const SCORE_ROWS: {
   { key: "scoreCCST", weight: "25%", label: "Critical Case: Trauma" },
   { key: "scoreCCSM", weight: "25%", label: "Critical Case: Medical" },
 ];
+
+const BATCH_08_SCORE_ROWS: ScoreRow[] = [
+  { key: "scoreFWE", weight: "10%", label: "Final Written Examination" },
+  {
+    key: "scoreSJE",
+    weight: "15%",
+    label: "Situational Judgement Examination",
+  },
+  {
+    key: "scoreEP",
+    weight: "25%",
+    label: "Equipment / Patient Assessment",
+  },
+  { key: "scoreCCST", weight: "25%", label: "Critical Case: Trauma" },
+  { key: "scoreCCSM", weight: "25%", label: "Critical Case: Medical" },
+];
+
+const BATCH_11_SCORE_ROWS: typeof SCORE_ROWS = [
+  {
+    key: "scoreFWE",
+    weight: "83.33%",
+    label: "Final Written Examination",
+  },
+  {
+    key: "scoreCCSM",
+    weight: "8.33%",
+    label: "Practical Exam: Medical",
+  },
+  {
+    key: "scoreCCST",
+    weight: "8.33%",
+    label: "Practical Exam: Trauma",
+  },
+];
+
+export function parseProficiencyRows(json: unknown): ScoreRow[] | null {
+  if (!Array.isArray(json) || json.length === 0) return null;
+  const keys = new Set<ScoreKey>();
+  const rows: ScoreRow[] = [];
+  for (const entry of json) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry))
+      return null;
+    const record = entry as Record<string, unknown>;
+    const key = record.key;
+    const label = typeof record.label === "string" ? record.label.trim() : "";
+    const weight =
+      typeof record.weight === "string" ? record.weight.trim() : "";
+    if (!SCORE_KEYS.includes(key as ScoreKey)) return null;
+    if (!label || !weight) return null;
+    if (keys.has(key as ScoreKey)) return null;
+    keys.add(key as ScoreKey);
+    rows.push({ key: key as ScoreKey, label, weight });
+  }
+  return rows;
+}
+
+export function scoreRowsFor(
+  batchCode?: string | null,
+  proficiencyRows?: unknown,
+): typeof SCORE_ROWS {
+  const customRows = parseProficiencyRows(proficiencyRows);
+  if (customRows) return customRows;
+  if (batchCode === "BATCH-08") return BATCH_08_SCORE_ROWS;
+  if (batchCode === "BATCH-11") return BATCH_11_SCORE_ROWS;
+  return SCORE_ROWS;
+}
 
 export function statusBadgeVariant(
   state: VerificationState,

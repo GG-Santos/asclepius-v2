@@ -1,0 +1,88 @@
+---
+title: Edit a Graduate
+description: Correct public credential data after graduation.
+---
+
+Last reviewed: 2026-06-12.
+
+Edit graduate records when the official credential record needs correction:
+name, LCN context, batch, issue date, expiration date, re-certification date,
+photo, or proficiency scores.
+
+<OpenRoute href="/dashboard/graduates">Open Graduates</OpenRoute>
+
+<WorkflowMedia title="Edit a Graduate" slug="edit-graduate" />
+
+## What the Form Controls
+
+| Section | Notes |
+| --- | --- |
+| Photo | Public credential portrait and printable artifacts. |
+| Profile Information | LCN, batch, name parts, issue date, expiration date, and latest re-certification date. |
+| Proficiency Evaluation | Weighted score rows or granular scheme rows depending on the batch. |
+| Save action | Updates the official record and public artifacts immediately. |
+| Delete action | Permanently removes the record and public verification page. |
+
+## Steps
+
+<Steps>
+
+<Step>
+
+### Open the record
+
+From Graduates, search for the LCN or name, then use **View record**. Confirm it
+is the correct person before editing.
+
+</Step>
+
+<Step>
+
+### Open edit
+
+Choose **Edit** on the detail page, or use the row edit action from the list.
+
+</Step>
+
+<Step>
+
+### Make the correction
+
+Change only fields backed by source evidence. Keep LCN changes rare and review
+dates carefully.
+
+</Step>
+
+<Step>
+
+### Save changes
+
+Choose **Save changes**, then confirm the dialog. The app returns to the
+graduate record or list depending on the edit flow.
+
+</Step>
+
+<Step>
+
+### Verify public output
+
+Open the public credential from the detail page and inspect the name, status,
+dates, batch, photo, score table, certificate, and ID card.
+
+</Step>
+
+</Steps>
+
+## Troubleshooting
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| Public page still shows old data | Edit was not saved or page is cached. | Reopen the graduate detail page, then refresh `/verify/[lcn]`. |
+| Downloaded artifact text overlaps | Name, labels, or template text is too long. | Check the graduate fields and template settings before distribution. |
+| Expiry looks wrong after edit | Date was typed in a format the parser interpreted differently. | Use the date picker or a clear date such as `August 03, 2026`. |
+| LCN cannot be changed | The edit flow locks LCN for generated records. | Use approved manual correction procedure rather than forcing a duplicate. |
+
+<DocNote title="Graduate edits are public edits" tone="warn">
+After graduation, the graduate record is the public source. Verify the public
+credential and printable artifacts after saving.
+</DocNote>

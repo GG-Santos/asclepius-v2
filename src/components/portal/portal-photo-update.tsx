@@ -20,22 +20,19 @@ async function cropToFile(src: string, area: Area): Promise<File> {
   const img = new Image();
   img.src = src;
   await img.decode();
+  // Cap output at the artifact photo-slot resolution (≤1200px wide, 4:5) —
+  // full-resolution phone crops produce PNGs past the upload's 5MB limit.
+  const MAX_W = 1200;
+  const scale = Math.min(1, MAX_W / area.width);
+  const outW = Math.round(area.width * scale);
+  const outH = Math.round(area.height * scale);
   const canvas = document.createElement("canvas");
-  canvas.width = Math.round(area.width);
-  canvas.height = Math.round(area.height);
+  canvas.width = outW;
+  canvas.height = outH;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Canvas unsupported");
-  ctx.drawImage(
-    img,
-    area.x,
-    area.y,
-    area.width,
-    area.height,
-    0,
-    0,
-    area.width,
-    area.height,
-  );
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(img, area.x, area.y, area.width, area.height, 0, 0, outW, outH);
   const blob: Blob = await new Promise((res, rej) =>
     canvas.toBlob(
       (b) => (b ? res(b) : rej(new Error("toBlob failed"))),

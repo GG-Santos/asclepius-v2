@@ -1,0 +1,131 @@
+---
+title: Route Map
+description: Dashboard and public routes touched by Registry operations.
+---
+
+Last reviewed: 2026-06-12.
+
+Use this map when tracking whether a workflow has been verified end to end.
+Registry routes are stable enough for daily operations. Courses, Publishing, and
+Administration routes are listed so admins can find them, but those areas remain
+experimental or under development.
+
+## Registry Routes
+
+| Area | Route | Use |
+| --- | --- | --- |
+| Overview | `/dashboard` | Registry health, renewal risk, recent verification lookups, and quick actions. |
+| Batches list | `/dashboard/batches` | Search, filter, create, view, edit, and delete empty batches. |
+| Batch detail | `/dashboard/batches/[id]` | Review roster, graduates, batch metrics, and public cohort context. |
+| Batch edit | `/dashboard/batches/[id]/edit` | Edit cohort metadata, professor, description, media, grading scheme, quiz definitions, and proficiency rows. |
+| Students list | `/dashboard/students` | Search active students and failed students, then view, edit, graduate, restore, or delete records. |
+| New student | `/dashboard/students/new` | Add a training record. |
+| Student detail | `/dashboard/students/[id]` | Inspect one training record before editing or graduating. |
+| Student edit | `/dashboard/students/[id]/edit` | Edit training identity, batch assignment, photo, quizzes, and practical scores. |
+| Graduates list | `/dashboard/graduates` | Search credential records, renew, view, edit, archive, restore, or delete. |
+| New graduate | `/dashboard/graduates/new` | Add verified historical or manual graduate records. |
+| Graduate detail | `/dashboard/graduates/[id]` | Inspect one credential, artifacts, public link, renewal action, archive action, delete action, and portal account manager. |
+| Graduate edit | `/dashboard/graduates/[id]/edit` | Edit public credential fields and proficiency records. |
+| Recertified export | `/dashboard/graduates/recertified` | Filter renewed records and download front/back ID card ZIP exports. |
+| Public verification | `/verify/[lcn]` | Public credential result for one LCN. |
+| Public cohort | `/cohorts/[id]` | Public cohort page linked from registry media and graduate context. |
+
+<OpenRoute href="/dashboard">Open Overview</OpenRoute>
+<OpenRoute href="/dashboard/batches">Open Batches</OpenRoute>
+<OpenRoute href="/dashboard/students">Open Students</OpenRoute>
+<OpenRoute href="/dashboard/graduates">Open Graduates</OpenRoute>
+<OpenRoute href="/dashboard/graduates/recertified">Open Recertified</OpenRoute>
+
+## Adjacent Dashboard Routes
+
+| Area | Route | Current status |
+| --- | --- | --- |
+| Staff | `/dashboard/staff` | Administration. Use for roles, locks, resets, and account cleanup. |
+| Inquiries | `/dashboard/inquiries` | Under development. Enrollment inquiry queue. |
+| Inquiry detail | `/dashboard/inquiries/[id]` | Under development. One inquiry record. |
+| Settings | `/dashboard/settings` | Administration. Signed-in account settings. |
+| Expiry policy | `/dashboard/settings/expiry` | Administration. Affects renewal and expiry calculations. |
+| Templates | `/dashboard/settings/templates` | Administration. Affects generated certificate and ID card artwork. |
+| Models | `/dashboard/models` | Under development. Internal model library. |
+| Model editor | `/dashboard/models/[id]` | Under development. One internal model record. |
+| Courses | `/dashboard/courses` | Experimental. Course list and authoring entry point. |
+| New course | `/dashboard/courses/new` | Experimental. Course shell creation. |
+| Course editor | `/dashboard/courses/[id]` | Experimental. Course structure, modules, items, publish controls. |
+| Course preview | `/dashboard/courses/[id]/preview` | Experimental. Graduate-facing course preview. |
+| Course roster | `/dashboard/courses/[id]/roster` | Experimental. Course enrollment and progress. |
+| Course quiz | `/dashboard/courses/[id]/quizzes/[quizId]` | Experimental. Quiz editing. |
+| Course page | `/dashboard/courses/[id]/pages/[pageId]` | Experimental. Page editing. |
+| Question banks | `/dashboard/courses/banks` | Experimental. Quiz question banks. |
+| Question bank editor | `/dashboard/courses/banks/[bankId]` | Experimental. Bank question management. |
+| Blog | `/dashboard/blog` | Under development. Public articles. |
+| New blog post | `/dashboard/blog/new` | Under development. Draft creation. |
+| Blog post edit | `/dashboard/blog/[id]/edit` | Under development. Existing article editing. |
+| Team | `/dashboard/team` | Under development. Public profile content. |
+| Testimonials | `/dashboard/testimonials` | Under development. Public testimonial approval. |
+| Assets | `/dashboard/assets` | Under development. Reusable media library. |
+
+<OpenRoute href="/dashboard/staff">Open Staff</OpenRoute>
+<OpenRoute href="/dashboard/settings/expiry">Open Expiry Policy</OpenRoute>
+<OpenRoute href="/dashboard/settings/templates">Open Templates</OpenRoute>
+<OpenRoute href="/dashboard/courses">Open Courses</OpenRoute>
+
+## Public and Portal Routes
+
+| Area | Route | Current status |
+| --- | --- | --- |
+| Home | `/` | Public site entry point. |
+| Staff login | `/login` | Staff authentication. |
+| Enrollment | `/enroll` | Public enrollment form. |
+| Public blog | `/blog` | Under development. Public article index. |
+| Public blog detail | `/blog/[slug]` | Under development. One public article. |
+| Showcase | `/showcase` | Under development. Public showcase index. |
+| Showcase detail | `/showcase/[slug]` | Under development. One public showcase item. |
+| Graduate portal | `/portal` | Graduate authenticated home. |
+| Portal login | `/portal/login` | Graduate authentication. |
+| Portal register | `/portal/register` | Graduate account activation. |
+| Portal expired | `/portal/expired` | Expired-access state. |
+| Portal courses | `/portal/courses` | Experimental. Graduate course catalog. |
+| Portal course | `/portal/courses/[slug]` | Experimental. One graduate-facing course. |
+| Portal lesson | `/portal/courses/[slug]/[itemId]` | Experimental. One course item. |
+| Portal grades | `/portal/grades` | Experimental. Graduate course grades. |
+| Portal posts | `/portal/posts` | Experimental. Graduate-authored posts. |
+| New portal post | `/portal/posts/new` | Experimental. Graduate post creation. |
+| Portal post edit | `/portal/posts/[id]/edit` | Experimental. Graduate post editing. |
+| Portal settings | `/portal/settings` | Graduate account settings. |
+| Public verification | `/verify/[lcn]` | Registry-facing public credential result. |
+| Public cohort | `/cohorts/[id]` | Registry-facing public cohort page. |
+
+## System Routes
+
+| Area | Route | Current status |
+| --- | --- | --- |
+| Auth API | `/api/auth/[...all]` | System route. Better Auth handler. |
+| Batches API | `/api/batches` | System route. Batch lookup. |
+| Models API | `/api/models` | System route. Model data. |
+| Scan API | `/api/scan` | System route. Scan creation. |
+| Scan detail API | `/api/scan/[id]` | System route. Scan detail. |
+| Upload API | `/api/upload` | System route. General uploads. |
+| Asset upload API | `/api/upload/asset` | System route. Asset uploads. |
+| Blog image upload API | `/api/upload/blog-image` | System route. Blog media uploads. |
+| Course file upload API | `/api/upload/course-file` | System route. Course file uploads. |
+| Model upload API | `/api/upload/model` | System route. Model uploads. |
+| Icon | `/icon.png` | Static asset. |
+| Robots | `/robots.txt` | Static metadata. |
+| Sitemap | `/sitemap.xml` | Static metadata. |
+| Not found | `/_not-found` | Framework route. |
+
+## Tracking Rule
+
+For every Registry change, track three points:
+
+1. The admin route where the action happened.
+2. The record route that shows the saved result.
+3. The public or export route affected by the change.
+
+## Troubleshooting
+
+| Symptom | Check |
+| --- | --- |
+| A link opens the wrong area | Use the left sidebar label first, then compare the URL against this map. |
+| A record is missing from a list | Confirm the status tab or server filter, such as Students vs Failed or Graduates vs Archived. |
+| A public page does not match the admin record | Reopen the graduate detail route, confirm the saved fields, then refresh `/verify/[lcn]`. |

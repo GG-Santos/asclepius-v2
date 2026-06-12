@@ -6,6 +6,7 @@ import type { GraduateRow } from "@/components/dashboard/graduates-table";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { Button } from "@/components/ui/button";
 import { displayName, verificationState } from "@/lib/graduate";
+import { getExpiryPolicy } from "@/lib/org-settings";
 import { prisma } from "@/lib/prisma";
 import { rankGraduates } from "@/lib/ranking";
 import { requireAdmin } from "@/lib/session";
@@ -75,9 +76,10 @@ export default async function GraduatesPage({
     batchProfs.map((b) => [b.code, b.professor] as const),
   );
 
-  // Global weighted ranking across all graduate-status records.
+  // Global weighted ranking across all graduate-status records. Legacy
+  // records have no grade data — shown as "Legacy", never ranked.
   const ranked = await prisma.graduate.findMany({
-    where: { status: "GRADUATE" },
+    where: { status: "GRADUATE", legacy: false },
     select: {
       id: true,
       scoreFWE: true,
@@ -86,6 +88,7 @@ export default async function GraduatesPage({
       scorePAS: true,
       scoreCCST: true,
       scoreCCSM: true,
+      bonusPoints: true,
     },
   });
   const globalRanks = rankGraduates(ranked.map((x) => ({ id: x.id, six: x })));
@@ -126,15 +129,28 @@ export default async function GraduatesPage({
           </p>
         }
         actions={
-          <Button asChild>
-            <Link href="/dashboard/graduates/new">
-              <Plus aria-hidden /> New record
-            </Link>
-          </Button>
+          <>
+            <Button asChild variant="outline">
+              <Link href="/dashboard/graduates/recertified">Recertified</Link>
+            </Button>
+            <Button asChild>
+              <Link href="/dashboard/graduates/new">
+                <Plus aria-hidden /> New record
+              </Link>
+            </Button>
+          </>
         }
       />
 
-      <GraduatesDataTable rows={rows} />
+      <GraduatesDataTable
+        rows={rows}
+        scope={
+          effective === "ARCHIVED" || effective === "ALL"
+            ? effective
+            : "GRADUATE"
+        }
+        validityYears={(await getExpiryPolicy()).licenseValidityYears}
+      />
     </div>
   );
 }

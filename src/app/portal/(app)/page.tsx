@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CredentialArtifacts } from "@/components/verify/credential-artifacts";
 import { coursesPrisma } from "@/lib/courses-db";
 import { displayName } from "@/lib/graduate";
+import { getActiveTemplate } from "@/lib/org-settings";
 import { prisma } from "@/lib/prisma";
 import { certificateQrDataUrl, verifyQrDataUrl } from "@/lib/qr";
 import { requireGraduate } from "@/lib/session";
@@ -22,9 +23,10 @@ function daysUntil(d: Date | null): number | null {
 export default async function PortalHome() {
   const { graduate: g } = await requireGraduate();
   const name = displayName(g);
-  const [qrDataUrl, certQrDataUrl] = await Promise.all([
+  const [qrDataUrl, certQrDataUrl, template] = await Promise.all([
     verifyQrDataUrl(g.lcn),
     certificateQrDataUrl(g.lcn),
+    getActiveTemplate(),
   ]);
   const left = daysUntil(g.expiresAt);
 
@@ -102,6 +104,7 @@ export default async function PortalHome() {
               photoUrl={g.photo?.url ?? null}
               qrDataUrl={qrDataUrl}
               certQrDataUrl={certQrDataUrl}
+              template={template}
             />
             <PortalPhotoUpdate currentUrl={g.photo?.url ?? null} />
           </CardContent>

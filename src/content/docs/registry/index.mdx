@@ -1,0 +1,89 @@
+---
+title: Registry
+description: The polished operating area for batches, students, graduation, graduates, renewals, and credential artifacts.
+---
+
+Last reviewed: 2026-06-12.
+
+Registry is the primary production workflow in WSL EMS. It owns the records that
+move a learner from a training batch to a public credential. Courses, Publishing,
+and Administration are still experimental or under active development; use those
+sections carefully, but rely on Registry as the current operating source of
+truth.
+
+<OpenRoute href="/dashboard/batches">Open Batches</OpenRoute>
+<OpenRoute href="/dashboard/students">Open Students</OpenRoute>
+<OpenRoute href="/dashboard/graduates">Open Graduates</OpenRoute>
+
+## Operating Model
+
+| Owner | Route | What it controls |
+| --- | --- | --- |
+| Batches | `/dashboard/batches` | Cohort code, name, professor, media, grading setup, roster, and graduation action. |
+| Students | `/dashboard/students` | In-training identity, batch assignment, photo, raw quiz scores, practical scores, and training status. |
+| Graduates | `/dashboard/graduates` | Public credential truth, LCN, expiry, renewal, archive state, cards, certificates, and portal account link. |
+| Verification | `/verify/[lcn]` | Public view of one credential. Always verify here after public-facing edits. |
+
+## Registry Sequence
+
+<Steps>
+
+<Step>
+
+### Set up the batch
+
+Create the batch before adding learners. The batch is the cohort anchor for
+assignment, grading setup, graduation, public cohort pages, and generated LCNs.
+
+</Step>
+
+<Step>
+
+### Add students
+
+Student records hold training data only. They do not have LCNs. Complete the
+profile, batch assignment, photo, quiz scores, and practical scores before
+graduation.
+
+</Step>
+
+<Step>
+
+### Graduate the batch
+
+Use the batch graduation dialog when the roster is complete. Students at 70% or
+above become graduate records. Students below 70% are withdrawn. Missing scores
+block the action.
+
+</Step>
+
+<Step>
+
+### Maintain the graduate registry
+
+After graduation, the graduate record becomes the source of truth for public
+verification, expiry, renewal, artifacts, ranking, and portal access.
+
+</Step>
+
+</Steps>
+
+## Guides
+
+<Cards>
+  <Card title="Create a Batch" href="/docs/registry/create-batch" description="Create the cohort anchor used by students and graduation." />
+  <Card title="Edit a Batch" href="/docs/registry/edit-batch" description="Update batch metadata, professor assignment, media, and grading setup." />
+  <Card title="Delete a Batch" href="/docs/registry/delete-batch" description="Remove an empty batch safely." />
+  <Card title="Create a Student" href="/docs/registry/create-student" description="Add a learner to the active training roster." />
+  <Card title="Edit a Student" href="/docs/registry/edit-student" description="Correct identity, scores, photo, and batch assignment." />
+  <Card title="Delete a Student" href="/docs/registry/delete-student" description="Remove a mistaken in-training record." />
+  <Card title="Graduate a Batch" href="/docs/registry/graduate-batch" description="Convert complete training records into public credentials." />
+  <Card title="Graduate Registry" href="/docs/registry/graduate-registry" description="Find, inspect, and maintain credential records." />
+  <Card title="Download Credentials" href="/docs/registry/download-credentials" description="Export certificate and ID card PNG files." />
+</Cards>
+
+<DocNote title="Public data lives here" tone="warn">
+Registry edits can change public verification pages and printable credentials.
+Verify the public route after any name, date, status, photo, score, renewal, or
+template-impacting edit.
+</DocNote>

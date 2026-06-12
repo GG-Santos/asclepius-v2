@@ -21,15 +21,25 @@ export type QuizSettings = {
   allowedAttempts: number;
   shuffle: boolean;
   timeLimitMins: number | null;
+  bankId: string | null;
+  bankDrawCount: number | null;
   state: string;
+};
+
+export type LinkableBank = {
+  id: string;
+  title: string;
+  questionCount: number;
 };
 
 export function QuizSettingsForm({
   courseId,
   quiz,
+  banks,
 }: {
   courseId: string;
   quiz: QuizSettings;
+  banks: LinkableBank[];
 }) {
   const [state, formAction, pending] = useActionState<
     CourseActionState,
@@ -124,6 +134,45 @@ export function QuizSettingsForm({
               Shuffle question order for each attempt
             </span>
           </label>
+
+          {banks.length > 0 && (
+            <fieldset className="grid gap-3 rounded-lg border border-outline-variant/60 p-4 sm:col-span-2 sm:grid-cols-2">
+              <legend className="px-1 text-sm font-medium text-on-surface">
+                Question bank draw
+              </legend>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="q-bank">Draw from bank</Label>
+                <Select
+                  id="q-bank"
+                  name="bankId"
+                  defaultValue={quiz.bankId ?? ""}
+                >
+                  <option value="">None</option>
+                  {banks.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.title} ({b.questionCount})
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="q-draw">Questions per attempt</Label>
+                <Input
+                  id="q-draw"
+                  name="bankDrawCount"
+                  type="number"
+                  min={1}
+                  defaultValue={quiz.bankDrawCount ?? undefined}
+                  placeholder="e.g. 5"
+                />
+              </div>
+              <p className="text-xs text-on-surface-variant sm:col-span-2">
+                Each attempt presents this quiz's own questions plus a fresh
+                random set from the bank. Set both fields to enable the draw —
+                clearing either disables it.
+              </p>
+            </fieldset>
+          )}
           <div className="sm:col-span-2">
             <Button type="submit" disabled={pending}>
               {pending ? "Saving…" : "Save quiz"}

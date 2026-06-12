@@ -1,4 +1,4 @@
-import { weightedAverage } from "@/lib/grading";
+import { scoreTotal } from "@/lib/graduate";
 import type { GraduateSixScores, StudentRawScores } from "@/lib/student";
 import {
   PRACTICAL_DEFS,
@@ -9,8 +9,8 @@ import {
 // Pure ranking logic, computed on read.
 //  - Students: per-activity (Q1–Q10 + 5 practicals) score, pass/fail vs the
 //    activity's own threshold, and rank within a cohort. Diagnostic only.
-//  - Graduates: rank by weighted average — pass the batch's graduates for batch
-//    rank, or all graduates for global rank.
+//  - Graduates: rank by Total Evaluation (sum of present weighted points) —
+//    pass the batch's graduates for batch rank, or all graduates for global.
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
@@ -147,15 +147,22 @@ export type RankResult = { weighted: number | null; rank: number | null };
  * Rank graduates by weighted average (high→low). Pass a batch's graduates for
  * batch rank, or all graduates for global rank. Ungraded → rank null.
  */
+/**
+ * Rank by Total Evaluation = sum of the score columns PRESENT. Per-batch
+ * schemes legitimately leave columns empty (Batch 8 has no PAS, Batch 11 only
+ * FWE/CCST/CCSM) — their remaining weights still cover 100%, so the sum is the
+ * official total. Only records with no scores at all (legacy batches) are
+ * unranked.
+ */
 export function rankGraduates(
   grads: { id: string; six: GraduateSixScores }[],
 ): Map<string, RankResult> {
   const out = new Map<string, RankResult>();
   for (const g of grads) {
-    out.set(g.id, { weighted: weightedAverage(g.six), rank: null });
+    out.set(g.id, { weighted: scoreTotal(g.six), rank: null });
   }
   grads
-    .map((g) => ({ id: g.id, weighted: weightedAverage(g.six) }))
+    .map((g) => ({ id: g.id, weighted: scoreTotal(g.six) }))
     .filter((x): x is { id: string; weighted: number } => x.weighted != null)
     .sort((a, b) => b.weighted - a.weighted)
     .forEach((x, i) => {

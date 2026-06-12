@@ -20,6 +20,7 @@ export async function GET() {
       code: true,
       batchNumber: true,
       label: true,
+      proficiencyRows: true,
     },
     orderBy: [{ batchNumber: "asc" }, { code: "asc" }],
   });

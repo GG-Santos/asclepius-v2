@@ -1,0 +1,75 @@
+---
+title: Delete a Student
+description: Permanently remove a mistaken in-training record.
+---
+
+Last reviewed: 2026-06-12.
+
+Delete student records only when the training record itself was created in
+error. If the learner is real, correct the batch, status, identity, or scores
+instead of deleting history.
+
+<OpenRoute href="/dashboard/students">Open Students</OpenRoute>
+
+<WorkflowMedia title="Delete a Student" slug="delete-student" />
+
+## When Delete Fits
+
+| Situation | Action |
+| --- | --- |
+| Duplicate test or mistaken entry | Delete the student. |
+| Wrong batch | Edit the student and assign the correct batch. |
+| Wrong scores | Edit the scores from source evidence. |
+| Failed training outcome | Use the appropriate failed or withdrawn status, not deletion. |
+
+## Steps
+
+<Steps>
+
+<Step>
+
+### Open the student edit page
+
+Find the student from Students and choose the edit action.
+
+</Step>
+
+<Step>
+
+### Confirm it is the right record
+
+Check name, enrollment number, batch, and status before deleting.
+
+</Step>
+
+<Step>
+
+### Start deletion
+
+Choose **Delete** in the sticky action bar. The confirmation dialog explains
+that the student and training record are permanently removed.
+
+</Step>
+
+<Step>
+
+### Confirm deletion
+
+Choose **Delete** only for an approved mistaken record.
+
+</Step>
+
+</Steps>
+
+## Troubleshooting
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| The record is real training history | Delete is the wrong action. | Edit the record or use the correct lifecycle status. |
+| Student still appears after delete | Stale list or wrong status tab. | Refresh Students and search the enrollment number. |
+| You deleted a source record needed for graduation | Source data was not verified first. | Stop and recover through the approved database or backup process. |
+
+<DocNote title="Preserve real training history" tone="danger">
+Deleting removes the training record. Use it for mistaken entries, not for real
+learners with messy data.
+</DocNote>

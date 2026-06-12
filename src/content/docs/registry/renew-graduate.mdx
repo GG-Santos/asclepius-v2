@@ -1,0 +1,88 @@
+---
+title: Renew a Graduate
+description: Extend an active credential and prepare renewed ID exports.
+---
+
+Last reviewed: 2026-06-12.
+
+Renewal extends an active graduate license by the organization validity policy.
+The current expiry becomes the latest re-certification date, and the new expiry
+is calculated from the previous expiry.
+
+<OpenRoute href="/dashboard/graduates">Open Graduates</OpenRoute>
+<OpenRoute href="/dashboard/graduates/recertified">Open Recertified</OpenRoute>
+
+<WorkflowMedia title="Renew a Graduate" slug="renew-graduate" />
+
+## Where Renewal Appears
+
+| Surface | Control |
+| --- | --- |
+| Graduates table | Calendar-plus row action, shown for active graduate records. |
+| Graduate detail | **Renew +N yr** action beside Edit, Archive, Public credential, and Delete. |
+| Recertified view | Renewed records appear in the selected date window for ZIP export. |
+
+## Steps
+
+<Steps>
+
+<Step>
+
+### Find the graduate
+
+Open Graduates and search by exact LCN or name. Confirm the record is active
+and belongs to the person being renewed.
+
+</Step>
+
+<Step>
+
+### Start renewal
+
+Choose **Renew** from the row action or **Renew +N yr** on the detail page. The
+confirmation dialog explains that the current expiry becomes the latest
+re-certification date.
+
+</Step>
+
+<Step>
+
+### Confirm
+
+Choose **Renew +N yr** in the dialog only when renewal evidence is complete.
+
+</Step>
+
+<Step>
+
+### Verify dates
+
+Reopen the graduate detail page and public credential. Confirm latest
+re-certification and expiration dates.
+
+</Step>
+
+<Step>
+
+### Export renewed IDs
+
+Open Recertified, choose the date window, then download the ZIP when cards are
+ready for print review.
+
+</Step>
+
+</Steps>
+
+## Troubleshooting
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| Renew action is missing | The record is not an active graduate. | Check status and archive state before renewal. |
+| Recertified view is empty | No renewals happened in the selected window. | Switch to 1d, 7d, 30d, 90d, or use a custom date range. |
+| New expiry is not what you expected | Renewal extends from current expiry, not from today's date. | Inspect prior expiry and org validity policy. |
+| ZIP reports failed cards | Artifact rendering failed for one or more records. | Do not distribute the ZIP until each failure is reviewed. |
+
+<DocNote title="Renewal is evidence-backed" tone="warn">
+Do not renew to make a record look valid. Renew only after the official renewal
+or re-certification evidence exists.
+</DocNote>

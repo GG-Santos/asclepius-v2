@@ -26,7 +26,10 @@ export const getSession = cache(async () => {
   });
   if (account?.locked) return null;
   const u = session.user as { role?: string; graduateLcn?: string | null };
-  const role = (u.role ?? "writer") as Role;
+  // Role-less accounts default to graduate (least-privileged path: portal
+  // gates bounce them without an LCN). Legacy "writer" is preserved as-is so
+  // the dashboard layout can deny it pending admin reassignment.
+  const role = (u.role ?? "graduate") as Role;
   return {
     ...session,
     user: {
@@ -43,9 +46,39 @@ export async function requireUser() {
   return session;
 }
 
+/**
+ * Dashboard gate: admin and professor only. Graduates are redirected to
+ * their portal; legacy roles ("writer", anything unknown) are denied until
+ * an admin reassigns the account — signalled to the layout as `pending`.
+ */
+export async function requireStaff(): Promise<
+  | { session: Awaited<ReturnType<typeof requireUser>>; pending: false }
+  | { session: Awaited<ReturnType<typeof requireUser>>; pending: true }
+> {
+  const session = await requireUser();
+  const role = session.user.role as string;
+  if (role === "graduate") redirect("/portal");
+  if (role !== "admin" && role !== "professor") {
+    return { session, pending: true };
+  }
+  return { session, pending: false };
+}
+
 export async function requireAdmin() {
   const session = await requireUser();
   if (session.user.role !== "admin") redirect("/dashboard?denied=graduates");
+  return session;
+}
+
+/**
+ * Throwing admin gate for server actions: actions called from a non-admin
+ * client must REJECT (error result, nothing persisted), not redirect.
+ */
+export async function requireAdminAction() {
+  const session = await getSession();
+  if (!session || session.user.role !== "admin") {
+    throw new Error("Admin only.");
+  }
   return session;
 }
 

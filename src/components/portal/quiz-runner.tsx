@@ -81,6 +81,11 @@ function QuizForm({
     <form ref={formRef} action={formAction} className="space-y-5">
       <input type="hidden" name="itemId" value={itemId} />
       <input type="hidden" name="quizId" value={quizId} />
+      {/* The exact question set shown this attempt — the server grades and
+          validates against it (bank-drawn questions vary per attempt). */}
+      {questions.map((q) => (
+        <input key={q.id} type="hidden" name="presented" value={q.id} />
+      ))}
 
       {remaining !== null && (
         <div

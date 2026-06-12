@@ -22,7 +22,8 @@ model User {
   email         String   @unique
   emailVerified Boolean  @default(false)
   image         String?
-  role          String   @default("writer") // "admin" | "writer" | "graduate"
+  role          String   @default("graduate") // "admin" | "professor" | "graduate" ("writer" is legacy — denied until reassigned)
+  canBlog       Boolean  @default(false) // graduate accounts: admin-granted portal blog authoring
   graduateLcn   String? // for graduate accounts: the LCN they own
   locked        Boolean   @default(false) // admin-locked: blocks sign-in / access
   lockedAt      DateTime?
@@ -100,6 +101,7 @@ enum StudentStatus {
   IN_TRAINING
   GRADUATED
   WITHDRAWN
+  FAILED // did not pass — archived from the default list, never promotable
 }
 
 model Batch {
@@ -119,6 +121,18 @@ model Batch {
   logoId              String?     @db.ObjectId
   heroImageUrl        String? // public cohort hero (batch group photo)
   galleryUrls         String[]    @default([]) // public cohort gallery, ordered
+  // Per-batch quiz definitions: [{ key:"q1", label, max, passing }] (positional
+  // qN keys keep granularGrades compatible). Null = legacy q1–q10 defaults.
+  quizDefs            Json?
+  // Full per-batch assessment scheme (mode weighted-six | total-points,
+  // components with canonical-group mapping, passingTotal, missingAsZero).
+  // Supersedes quizDefs when present. Null = legacy behavior.
+  gradingScheme       Json?
+  // Graduate/certificate proficiency display rows:
+  // [{ key:"scoreSJE", weight:"15%", label:"Situational Judgement" }, ...].
+  // This controls labels/weights shown per batch; stored scores and rankings
+  // remain on Graduate.score* fields.
+  proficiencyRows     Json?
   createdAt           DateTime    @default(now())
   updatedAt           DateTime    @updatedAt
   graduates           Graduate[]
@@ -148,7 +162,10 @@ model Student {
   scorePAS       Float? // 0-200   Patient Assessment Verbalization
   scoreCCST      Float? // 0-100   Critical Case: Trauma
   scoreCCSM      Float? // 0-100   Critical Case: Medical
-  granularGrades Json? // { q1..q10: number|null } — periodic quiz raw scores
+  granularGrades Json? // { q1..q10: number|null } or scheme component keys — raw scores
+  // Scheme batches: admin-granted bonus applied per the batch's bonus rule.
+  bonusPoints    Float?
+  bonusNote      String?
 
   status         StudentStatus @default(IN_TRAINING)
   graduatedToLcn String? // set when promoted to a Graduate
@@ -189,6 +206,9 @@ model Graduate {
   expiresAt       DateTime?
   registrationRaw String?
   registeredAt    DateTime?
+  // When the last renewal ACTION happened (wall-clock; registeredAt stores the
+  // prior expiry, not the action time). Only future renewals stamp this.
+  recertifiedAt   DateTime?
 
   // Proficiency evaluation scores — frequently missing on legacy records.
   scoreFWE  Float? // Final Written Examination (10%)
@@ -197,6 +217,9 @@ model Graduate {
   scorePAS  Float? // Patient Assessment Skills (15%)
   scoreCCST Float? // Critical Case: Trauma (25%)
   scoreCCSM Float? // Critical Case: Medical (25%)
+  // Signed bonus/reconciliation in Total Evaluation points — its own line in
+  // the proficiency breakdown, NOT folded into any category. Total = six + bonus.
+  bonusPoints Float?
 
   ranking Int? // 0 = passed (no rank), 1/2/3 = podium rank
 
@@ -349,6 +372,9 @@ model Testimonial {
   pinned    Boolean  @default(false) // admin-pinned: shown first on the homepage
   order     Int      @default(0)
   submittedByLcn String? // LCN of the graduate who submitted it (portal)
+  // Admin-entered on the graduate's behalf — replaced (placeholder=false,
+  // back to review) the moment the graduate submits their own.
+  placeholder    Boolean @default(false)
   createdAt DateTime @default(now())
 
   @@index([approved])
@@ -378,3 +404,35 @@ model TeamMember {
 // client (src/lib/courses-db.ts). Enrollments there reference Graduate.lcn as a
 // soft string — there is no cross-database relation to maintain here.
 // ─────────────────────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Org settings — singleton (key "org"). Holds the expiry policy and the active
+// artifact-template pointer. Policy changes are future-only: nothing here ever
+// writes back to Graduate records.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model OrgSettings {
+  id                      String   @id @default(auto()) @map("_id") @db.ObjectId
+  key                     String   @unique // always "org" — singleton guard
+  licenseValidityYears    Int      @default(1) // bounds 1–10, validated in the action layer
+  archiveGraceYears       Int      @default(2) // bounds 0–10
+  activeTemplateVersionId String?  @db.ObjectId
+  updatedAt               DateTime @updatedAt
+  createdAt               DateTime @default(now())
+
+  @@map("org_settings")
+}
+
+// Append-only template versions. `config` holds the ArtifactTemplateConfig
+// JSON (text/color overrides + layer replacements referencing sanitized
+// MediaAsset URLs). History is never deleted — reset writes a defaults version.
+model ArtifactTemplateVersion {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  version   Int      @unique
+  config    Json
+  note      String? // e.g. "reset to defaults"
+  createdBy String?  @db.ObjectId
+  createdAt DateTime @default(now())
+
+  @@map("artifact_template_version")
+}

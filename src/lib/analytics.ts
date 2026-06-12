@@ -6,8 +6,8 @@ const DAY = 86_400_000;
 const dayKey = (d: Date) => d.toISOString().slice(0, 10);
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
-export type Range = 7 | 30 | 90;
-const RANGES: Range[] = [7, 30, 90];
+export type Range = 1 | 7 | 30 | 90;
+const RANGES: Range[] = [1, 7, 30, 90];
 export const normalizeRange = (v: unknown): Range => {
   const n = Number(v);
   return (RANGES as number[]).includes(n) ? (n as Range) : 30;

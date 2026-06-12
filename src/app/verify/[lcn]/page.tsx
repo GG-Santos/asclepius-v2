@@ -4,7 +4,8 @@ import { PublicHeader } from "@/components/public-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { CredentialView } from "@/components/verify/credential-view";
-import { displayName, verificationState } from "@/lib/graduate";
+import { displayName, scoreRowsFor, verificationState } from "@/lib/graduate";
+import { getActiveTemplate } from "@/lib/org-settings";
 import { prisma } from "@/lib/prisma";
 import { certificateQrDataUrl, verifyQrDataUrl } from "@/lib/qr";
 import { getSession } from "@/lib/session";
@@ -154,6 +155,12 @@ export default async function VerifyPage({
 
   const qrDataUrl = await verifyQrDataUrl(g.lcn);
   const certQrDataUrl = await certificateQrDataUrl(g.lcn);
+  const template = await getActiveTemplate();
+  // The graduate's own approved testimonial (incl. admin placeholders).
+  const testimonial = await prisma.testimonial.findFirst({
+    where: { submittedByLcn: g.lcn, approved: true },
+    select: { quote: true, rating: true },
+  });
   const session = await getSession();
   const manageHref =
     session?.user.role === "admin" ? `/dashboard/graduates/${g.id}` : null;
@@ -166,6 +173,7 @@ export default async function VerifyPage({
           id: true,
           code: true,
           label: true,
+          proficiencyRows: true,
           logo: { select: { url: true } },
         },
       })
@@ -179,6 +187,9 @@ export default async function VerifyPage({
         qrDataUrl={qrDataUrl}
         certQrDataUrl={certQrDataUrl}
         manageHref={manageHref}
+        template={template}
+        testimonial={testimonial}
+        scoreRows={scoreRowsFor(g.batchCode, batch?.proficiencyRows)}
         batch={
           batch
             ? {

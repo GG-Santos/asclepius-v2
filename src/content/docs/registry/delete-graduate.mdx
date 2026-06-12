@@ -1,0 +1,87 @@
+---
+title: Delete a Graduate
+description: Permanently remove a graduate record and its public verification page.
+---
+
+Last reviewed: 2026-06-12.
+
+Deleting a graduate permanently removes the registry record and its public
+credential route. Use archive when the record should be retained but hidden from
+public verification.
+
+<OpenRoute href="/dashboard/graduates">Open Graduates</OpenRoute>
+
+<WorkflowMedia title="Delete a Graduate" slug="delete-graduate" />
+
+## Delete vs Archive
+
+| Action | Result | Use when |
+| --- | --- | --- |
+| Archive | Keeps record in admin history and hides it from public verification. | The record is real but should not verify publicly. |
+| Restore | Moves an archived record back to active graduates. | The credential should become public again. |
+| Delete | Removes the graduate record and public verification page permanently. | The record is a duplicate, mistaken manual entry, or approved deletion. |
+
+## Steps
+
+<Steps>
+
+<Step>
+
+### Find the exact record
+
+Search by LCN, then open **View record**. Do not delete from memory or from a
+partial name match.
+
+</Step>
+
+<Step>
+
+### Prefer archive when preserving history
+
+If the credential should stop verifying but still remain in admin records, use
+**Archive** instead of Delete.
+
+</Step>
+
+<Step>
+
+### Start deletion
+
+Choose **Delete** from the graduate detail page or row action. The confirmation
+dialog states that the record and public credential are permanently removed.
+
+</Step>
+
+<Step>
+
+### Confirm deletion
+
+Choose **Delete** only when the deletion is approved and the LCN is definitely
+the intended record.
+
+</Step>
+
+<Step>
+
+### Verify removal
+
+Search Graduates for the LCN and open `/verify/[lcn]`. The record should no
+longer be publicly verifiable.
+
+</Step>
+
+</Steps>
+
+## Troubleshooting
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| You need to hide the record, not remove it | Archive was the intended action. | Use Archive instead of Delete. |
+| Deleted record still appears | Stale tab or cached list. | Refresh Graduates and search exact LCN. |
+| Public route still shows data | Browser cache or wrong LCN checked. | Refresh `/verify/[lcn]` and confirm the exact LCN. |
+| Wrong record was deleted | Exact LCN was not confirmed. | Stop distribution and restore from backup or database process if available. |
+
+<DocNote title="Deletion is the last resort" tone="danger">
+Archive preserves audit history. Delete only when permanent removal is the
+approved outcome.
+</DocNote>

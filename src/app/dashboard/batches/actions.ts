@@ -1,15 +1,23 @@
 "use server";
 
+import type { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { gradeStudent } from "@/lib/grading";
-import { isLegacyBatch } from "@/lib/graduate";
+import {
+  parseGradingScheme,
+  proficiencyRowsFromScheme,
+} from "@/lib/assessment-scheme";
+import { gradeStudentForBatch, rollupForBatch } from "@/lib/grading";
+import { isLegacyBatch, parseProficiencyRows } from "@/lib/graduate";
+import { getExpiryPolicy } from "@/lib/org-settings";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin, requireUser } from "@/lib/session";
-import { buildLcn, rollupGraduateScores } from "@/lib/student";
+import { buildLcn } from "@/lib/student";
+import { parseBatchQuizDefs } from "@/lib/student-grades";
 
 export type BatchActionState = {
   ok?: boolean;
+  batchId?: string;
   error?: string;
   fieldErrors?: Record<string, string>;
 };
@@ -32,6 +40,10 @@ const batchSchema = z.object({
     (v) => (v === "" ? undefined : v),
     z.string().trim().optional(),
   ),
+  description: z.preprocess(
+    (v) => (v === "" ? undefined : v),
+    z.string().trim().max(2000, "Description is too long").optional(),
+  ),
   year: z.preprocess(
     (v) => (v === "" || v == null ? undefined : v),
     z.coerce.number().int().min(1900).max(2200).optional(),
@@ -51,12 +63,54 @@ export async function createBatch(
     }
     return { error: "Please fix the highlighted fields.", fieldErrors };
   }
-  const { code, batchNumber, label, professor, year } = parsed.data;
+  const { code, batchNumber, label, professor, description, year } =
+    parsed.data;
   const exists = await prisma.batch.findUnique({ where: { code } });
   if (exists) return { error: `${code} already exists.` };
 
   const logoAssetId = String(formData.get("logoAssetId") ?? "").trim() || null;
   const professorId = String(formData.get("professorId") ?? "").trim() || null;
+  const rawGradingScheme = String(formData.get("gradingScheme") ?? "").trim();
+  let gradingScheme: Prisma.InputJsonValue | undefined;
+  let proficiencyRows: Prisma.InputJsonValue | undefined;
+
+  if (rawGradingScheme) {
+    if (rawGradingScheme.startsWith("__INVALID__:")) {
+      const message =
+        rawGradingScheme.replace("__INVALID__:", "") ||
+        "Assessment scheme is invalid.";
+      return {
+        error: "Please fix the highlighted fields.",
+        fieldErrors: { gradingScheme: message },
+      };
+    }
+
+    let parsedSchemeJson: unknown;
+    try {
+      parsedSchemeJson = JSON.parse(rawGradingScheme);
+    } catch {
+      return {
+        error: "Please fix the highlighted fields.",
+        fieldErrors: { gradingScheme: "Assessment scheme is malformed." },
+      };
+    }
+
+    const scheme = parseGradingScheme(parsedSchemeJson as Prisma.JsonValue);
+    if (!scheme) {
+      return {
+        error: "Please fix the highlighted fields.",
+        fieldErrors: {
+          gradingScheme:
+            "Assessment scheme needs valid categories, weights, and assessments.",
+        },
+      };
+    }
+    gradingScheme = scheme as Prisma.InputJsonValue;
+    proficiencyRows = proficiencyRowsFromScheme(
+      scheme,
+    ) as Prisma.InputJsonValue;
+  }
+
   let professorName = professor ?? null;
   if (professorId && !professorName) {
     const u = await prisma.user.findUnique({
@@ -66,19 +120,23 @@ export async function createBatch(
     professorName = u?.name ?? null;
   }
 
-  await prisma.batch.create({
+  const batch = await prisma.batch.create({
     data: {
       code,
       batchNumber: batchNumber ?? null,
       label: label ?? null,
       professor: professorName,
       professorId,
+      description: description ?? null,
       year: year ?? null,
       ...(logoAssetId ? { logoId: logoAssetId } : {}),
+      ...(gradingScheme ? { gradingScheme } : {}),
+      ...(proficiencyRows ? { proficiencyRows } : {}),
     },
   });
   revalidatePath("/dashboard/batches");
-  return { ok: true };
+  revalidatePath(`/dashboard/batches/${batch.id}`);
+  return { ok: true, batchId: batch.id };
 }
 
 export async function updateBatch(formData: FormData): Promise<void> {
@@ -206,6 +264,7 @@ async function recomputeBatchRankings(batchCode: string) {
       scorePAS: true,
       scoreCCST: true,
       scoreCCSM: true,
+      bonusPoints: true,
     },
   });
   const totals = rows.map((g) => ({
@@ -248,7 +307,7 @@ export async function previewBatchGraduation(
   if (!batch) return out;
   const students = await inTrainingStudents(id, batch.code);
   for (const s of students) {
-    const g = gradeStudent(s);
+    const g = gradeStudentForBatch(s, batch);
     const name = s.name?.trim() || s.enrollmentNo;
     if (g.verdict === "incomplete") out.incomplete.push({ id: s.id, name });
     else if (g.verdict === "pass")
@@ -276,7 +335,7 @@ export async function markBatchGraduated(
 
   const students = await inTrainingStudents(id, batch.code);
   const incomplete = students.filter(
-    (s) => gradeStudent(s).verdict === "incomplete",
+    (s) => gradeStudentForBatch(s, batch).verdict === "incomplete",
   );
   if (incomplete.length > 0) {
     return {
@@ -284,9 +343,10 @@ export async function markBatchGraduated(
     };
   }
 
+  const { licenseValidityYears } = await getExpiryPolicy();
   let seq = await prisma.graduate.count({ where: { batchCode: batch.code } });
   for (const s of students) {
-    const g = gradeStudent(s);
+    const g = gradeStudentForBatch(s, batch);
     if (g.verdict === "pass") {
       seq += 1;
       let lcn = buildLcn(batch.code, graduatedAt, seq);
@@ -294,9 +354,9 @@ export async function markBatchGraduated(
         seq += 1;
         lcn = buildLcn(batch.code, graduatedAt, seq);
       }
-      const scores = rollupGraduateScores(s);
+      const scores = rollupForBatch(s, batch);
       const expiresAt = new Date(graduatedAt);
-      expiresAt.setFullYear(expiresAt.getFullYear() + 1);
+      expiresAt.setFullYear(expiresAt.getFullYear() + licenseValidityYears);
       await prisma.graduate.create({
         data: {
           lcn,
@@ -489,5 +549,140 @@ export async function moveBatchGalleryImage(
   }
   revalidatePath(`/dashboard/batches/${id}`);
   revalidatePath(`/cohorts/${id}`);
+  return { ok: true };
+}
+
+/**
+ * R12: save a batch's quiz definitions (name, max score, passing mark; keys
+ * are positional qN). Existing raw quiz grades are NEVER modified — derived
+ * pass/fail and SJE recompute on read. Admin only.
+ */
+export async function updateBatchQuizDefs(
+  _prev: BatchActionState,
+  formData: FormData,
+): Promise<BatchActionState> {
+  await requireAdmin();
+  const id = String(formData.get("id") ?? "");
+  if (!id) return { error: "Missing batch." };
+
+  let raw: unknown;
+  try {
+    raw = JSON.parse(String(formData.get("quizDefs") ?? ""));
+  } catch {
+    return { error: "Malformed quiz definitions." };
+  }
+  // null clears custom definitions (back to the legacy q1-q10 defaults).
+  if (raw !== null) {
+    const parsed = parseBatchQuizDefs(raw as Prisma.JsonValue);
+    if (!parsed) {
+      return {
+        error:
+          "Invalid quiz definitions: each quiz needs a label, a max score above 0, and a passing mark within 0..max.",
+      };
+    }
+    raw = parsed;
+  }
+
+  await prisma.batch.update({
+    where: { id },
+    data: { quizDefs: raw === null ? null : (raw as Prisma.InputJsonValue) },
+  });
+  revalidatePath(`/dashboard/batches/${id}`);
+  revalidatePath("/dashboard/students");
+  return { ok: true };
+}
+
+/**
+ * R1/R10/R11: save a batch's full assessment scheme. Validation runs through
+ * parseGradingScheme (the same parser every grading path uses). null clears
+ * the scheme (back to quizDefs / legacy). Entered raw scores are NEVER
+ * touched - derived values recompute on read.
+ */
+export async function updateBatchGradingScheme(
+  _prev: BatchActionState,
+  formData: FormData,
+): Promise<BatchActionState> {
+  await requireAdmin();
+  const id = String(formData.get("id") ?? "");
+  if (!id) return { error: "Missing batch." };
+
+  let raw: unknown;
+  try {
+    raw = JSON.parse(String(formData.get("gradingScheme") ?? ""));
+  } catch {
+    return { error: "Malformed scheme payload." };
+  }
+  if (raw !== null) {
+    const parsed = parseGradingScheme(raw as Prisma.JsonValue);
+    if (!parsed) {
+      return {
+        error:
+          "Invalid scheme: category weights must total 100%, and every assessment needs a label, max > 0, optional passing within 0..max and unique keys.",
+      };
+    }
+    raw = parsed;
+  }
+
+  const parsedScheme =
+    raw === null ? null : (raw as ReturnType<typeof parseGradingScheme>);
+  await prisma.batch.update({
+    where: { id },
+    data: {
+      gradingScheme: raw === null ? null : (raw as Prisma.InputJsonValue),
+      ...(parsedScheme
+        ? {
+            proficiencyRows: proficiencyRowsFromScheme(
+              parsedScheme,
+            ) as Prisma.InputJsonValue,
+          }
+        : {}),
+    },
+  });
+  revalidatePath(`/dashboard/batches/${id}`);
+  revalidatePath("/dashboard/students");
+  revalidatePath("/dashboard/batches");
+  return { ok: true };
+}
+
+/**
+ * Save the graduate/certificate proficiency category rows for this batch.
+ * This is display metadata only: it does not rewrite Graduate.score* values,
+ * student quiz definitions, or rankings.
+ */
+export async function updateBatchProficiencyRows(
+  _prev: BatchActionState,
+  formData: FormData,
+): Promise<BatchActionState> {
+  await requireAdmin();
+  const id = String(formData.get("id") ?? "");
+  if (!id) return { error: "Missing batch." };
+
+  let raw: unknown;
+  try {
+    raw = JSON.parse(String(formData.get("proficiencyRows") ?? ""));
+  } catch {
+    return { error: "Malformed proficiency category payload." };
+  }
+
+  if (raw !== null) {
+    const parsed = parseProficiencyRows(raw);
+    if (!parsed) {
+      return {
+        error:
+          "Invalid proficiency categories: each row needs one unique score field, a label, and a displayed weight.",
+      };
+    }
+    raw = parsed;
+  }
+
+  await prisma.batch.update({
+    where: { id },
+    data: {
+      proficiencyRows: raw === null ? null : (raw as Prisma.InputJsonValue),
+    },
+  });
+  revalidatePath(`/dashboard/batches/${id}`);
+  revalidatePath("/dashboard/batches");
+  revalidatePath("/dashboard/graduates");
   return { ok: true };
 }

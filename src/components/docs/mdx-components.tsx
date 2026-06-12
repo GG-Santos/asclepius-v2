@@ -3,22 +3,24 @@ import { Card, Cards } from "fumadocs-ui/components/card";
 import { Step, Steps } from "fumadocs-ui/components/steps";
 import defaultMdxComponents from "fumadocs-ui/mdx";
 import type { MDXComponents } from "mdx/types";
-import { DocsHero } from "./docs-hero";
-import { IconCard } from "./icon-card";
+import { DocNote } from "./doc-note";
+import { OpenRoute } from "./open-route";
 import { StatusBadge } from "./status-badge";
 import { StatusReferenceTable } from "./status-reference-table";
+import { WorkflowMedia } from "./workflow-media";
 
-// Single component map handed to every docs MDX page. Themed Fumadocs
-// primitives (Card/Cards/Callout/Steps) plus the brand-specific components.
+// Keep docs pages close to product truth: standard Fumadocs primitives plus
+// small references that mirror real app states.
 export const docsMdxComponents: MDXComponents = {
   ...defaultMdxComponents,
   Card,
   Cards,
   Callout,
+  DocNote,
+  OpenRoute,
   Step,
   Steps,
-  DocsHero,
-  IconCard,
   StatusBadge,
   StatusReferenceTable,
+  WorkflowMedia,
 };

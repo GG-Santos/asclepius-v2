@@ -1,4 +1,11 @@
-import { ArrowLeft, ExternalLink, Plus, Trash2, Users } from "lucide-react";
+import {
+  ArrowLeft,
+  ExternalLink,
+  Eye,
+  Plus,
+  Trash2,
+  Users,
+} from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
@@ -173,6 +180,11 @@ export default async function CourseEditorPage({
           <ArrowLeft className="size-4" /> Courses
         </Link>
         <div className="flex items-center gap-1">
+          <Button asChild variant="ghost" size="sm">
+            <Link href={`/dashboard/courses/${course.id}/preview`}>
+              <Eye aria-hidden /> Preview as graduate
+            </Link>
+          </Button>
           <Button asChild variant="ghost" size="sm">
             <Link href={`/dashboard/courses/${course.id}/roster`}>
               <Users aria-hidden /> Roster

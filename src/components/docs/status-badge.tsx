@@ -2,11 +2,10 @@ import { Archive, Clock, ShieldCheck } from "lucide-react";
 import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 
-// Renders the exact same status chip the verify result page uses (ui/badge
-// variants), so the docs and the product can never drift apart.
 const STATUS = {
   verified: { variant: "verified", Icon: ShieldCheck, label: "Verified" },
   expired: { variant: "expired", Icon: Clock, label: "Expired" },
+  archived: { variant: "neutral", Icon: Archive, label: "Archived" },
   legacy: { variant: "legacy", Icon: Archive, label: "Legacy" },
 } as const;
 

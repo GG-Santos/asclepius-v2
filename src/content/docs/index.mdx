@@ -1,66 +1,82 @@
 ---
-title: Asclepius Docs
-description: Verify an EMT's WSL EMS credential, and learn how the registry works.
+title: Admin Wiki
+description: Internal operating docs for WSL EMS administrators.
 ---
 
-<DocsHero
-  eyebrow="Official EMS credential registry"
-  title="Verify an EMT's credential in seconds."
-  subtitle="Asclepius is the official public registry for every EMT trained and certified by WSL EMS Safety & Rescue Training Center. Check any license number against the source of record — free, instant, and without an account."
-  primary={{ label: "Verify a credential", href: "/" }}
-  secondary={{ label: "How verification works", href: "/docs/reference/how-it-works" }}
-  chips={["Official source of record", "No account required", "Results under 2 seconds", "QR-verifiable"]}
-/>
+Last reviewed: 2026-06-12.
 
-## Find your path
+These docs are written from the live dashboard. Registry is the polished daily
+operations area. Courses, Publishing, and Administration are documented, but
+they are still experimental or under development compared with Registry.
+
+## Start Here
 
 <Cards>
-  <IconCard icon="shield" title="Verify a credential" href="/docs/verify" description="Employers and the public — confirm an EMT's license in seconds. No account required." />
-  <IconCard icon="graduates" title="For graduates" href="/docs/graduates" description="Claim your portal account, take CE courses, and download your certificates." />
-  <IconCard icon="staff" title="For staff" href="/docs/staff" description="Manage students, batches, graduates, courses, and the blog." />
+  <Card title="Registry" href="/docs/registry" description="Batches, students, graduation, graduate records, renewals, downloads, and deletes." />
+  <Card title="Courses" href="/docs/courses" description="Experimental course authoring, preview, rosters, and completion paths." />
+  <Card title="Publishing" href="/docs/publishing" description="Under-development public content management." />
+  <Card title="Administration" href="/docs/administration" description="Staff access, expiry policy, artifact templates, and account settings." />
 </Cards>
 
-## Verify a credential
+## Dashboard Map
+
+The left sidebar is the source of truth for admin navigation.
+
+| Sidebar group | Pages | Use for |
+| --- | --- | --- |
+| Overview | `/dashboard` | Registry health, renewal risk, recent verification lookups, and next actions. |
+| Registry | Students, Graduates, Batches | Training records, credential records, cohorts, scores, graduation, and renewals. |
+| Content | Courses, Testimonials, Team, Blog, Assets | Experimental course tools and under-development public content. |
+| Administration | Inquiries, Staff | Enrollment leads and staff role management. |
+| Documentation | Admin Wiki | Internal operating docs. |
+
+<OpenRoute href="/dashboard">Open Overview</OpenRoute>
+<OpenRoute href="/dashboard/staff">Open Staff</OpenRoute>
+
+## First Admin Pass
 
 <Steps>
 
 <Step>
 
-### Find the License Number
+### Open the overview
 
-It's printed on the EMT's card or certificate, formatted like `A09-240801`.
-
-</Step>
-
-<Step>
-
-### Enter it and press Verify
-
-Open the [home page](/) and enter the LCN exactly as printed — surrounding spaces are ignored, but the rest is matched exactly.
+Review KPI cards, expiring credentials, recent verification lookups, and linked
+alerts before editing records.
 
 </Step>
 
 <Step>
 
-### Read the result
+### Choose the record owner
 
-A match shows the licensee's profile, proficiency record, license card, and certificate. Every result has a permanent link (`/verify/A09-240801`) and a QR code, so you can share it or re-scan it on any device.
+Batches own cohort setup. Students own in-training data. Graduates own public
+credential truth. Courses own learning content only.
+
+</Step>
+
+<Step>
+
+### Make one change
+
+Change one record, policy, or template at a time. This keeps verification clear
+when a public page, portal page, or export changes.
+
+</Step>
+
+<Step>
+
+### Verify the affected surface
+
+After saving, open the affected admin record and the public or portal route that
+uses it.
 
 </Step>
 
 </Steps>
 
-## What the statuses mean
-
-<StatusReferenceTable />
-
-<Callout type="info" title="Legacy doesn't mean invalid">
-Legacy records (batch 16 or earlier) were graded before automated scoring, so detailed proficiency scores aren't on file. The license itself is valid — Legacy status does not affect validity.
-</Callout>
-
-## Where to next
-
-<Cards>
-  <IconCard icon="search" title="Check a credential now" href="/" description="Go to the verification tool on the home page." />
-  <IconCard icon="help" title="Troubleshooting" href="/docs/troubleshooting" description="Common issues and what to do about them." />
-</Cards>
+<DocNote title="Admin actions can be public" tone="warn">
+Graduation, graduate edits, renewals, artifact downloads, course publishing,
+testimonials, team profiles, blog posts, and templates can change what visitors
+or graduates see.
+</DocNote>

@@ -2,7 +2,11 @@ import {
   BatchesManager,
   type BatchRow,
 } from "@/components/dashboard/batches-manager";
-import { type GradeResult, gradeStudent, rollupBatch } from "@/lib/grading";
+import {
+  type GradeResult,
+  gradeStudentForBatch,
+  rollupBatch,
+} from "@/lib/grading";
 import { batchNumber, scoreTotal, verificationState } from "@/lib/graduate";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/session";
@@ -25,6 +29,7 @@ export default async function BatchesPage() {
         scoreCCST: true,
         scoreCCSM: true,
         granularGrades: true,
+        bonusPoints: true,
       },
     }),
     prisma.graduate.findMany({
@@ -38,24 +43,32 @@ export default async function BatchesPage() {
         scorePAS: true,
         scoreCCST: true,
         scoreCCSM: true,
+        bonusPoints: true,
       },
     }),
   ]);
 
-  // In-training grading (pass rate), grouped by batch code.
+  // In-training grading (pass rate), grouped by batch code — each student
+  // graded under THEIR batch's scheme/quiz definitions (was a latent bug:
+  // this page previously graded with the global defaults).
+  const batchByCode = new Map(batches.map((b) => [b.code, b] as const));
   const byCode = new Map<string, GradeResult[]>();
   for (const s of students) {
     if (!s.batchCode) continue;
     const arr = byCode.get(s.batchCode) ?? [];
     arr.push(
-      gradeStudent({
-        scoreFWE: s.scoreFWE,
-        scoreEP: s.scoreEP,
-        scorePAS: s.scorePAS,
-        scoreCCST: s.scoreCCST,
-        scoreCCSM: s.scoreCCSM,
-        granularGrades: s.granularGrades,
-      }),
+      gradeStudentForBatch(
+        {
+          scoreFWE: s.scoreFWE,
+          scoreEP: s.scoreEP,
+          scorePAS: s.scorePAS,
+          scoreCCST: s.scoreCCST,
+          scoreCCSM: s.scoreCCSM,
+          granularGrades: s.granularGrades,
+          bonusPoints: s.bonusPoints,
+        },
+        batchByCode.get(s.batchCode) ?? null,
+      ),
     );
     byCode.set(s.batchCode, arr);
   }
@@ -123,16 +136,9 @@ export default async function BatchesPage() {
     };
   });
 
-  // Accounts an admin can assign as a batch's professor (admins + professors).
-  const professors = await prisma.user.findMany({
-    where: { role: { in: ["admin", "professor"] } },
-    select: { id: true, name: true },
-    orderBy: { name: "asc" },
-  });
-
   return (
     <div className="mx-auto max-w-[1200px] space-y-6">
-      <BatchesManager rows={rows} professors={professors} />
+      <BatchesManager rows={rows} />
     </div>
   );
 }

@@ -1,0 +1,19 @@
+{
+  "title": "Registry",
+  "pages": [
+    "index",
+    "route-map",
+    "create-batch",
+    "edit-batch",
+    "delete-batch",
+    "create-student",
+    "edit-student",
+    "delete-student",
+    "graduate-batch",
+    "graduate-registry",
+    "edit-graduate",
+    "renew-graduate",
+    "download-credentials",
+    "delete-graduate"
+  ]
+}

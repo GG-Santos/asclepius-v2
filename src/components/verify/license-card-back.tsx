@@ -5,6 +5,14 @@
 // constraint as the certificate's embedded QR. Signatory names and lines are
 // part of the artwork; the two ink-signature layers are admin-only.
 
+import { TemplateTextLayer } from "@/components/verify/template-text";
+import {
+  DEFAULT_TEMPLATE,
+  layerSrc,
+  type ResolvedTemplate,
+  suppressedOverride,
+} from "@/lib/artifact-template/resolve";
+
 const LAYER = "absolute inset-0 h-full w-full";
 const ART = "/assets/svg/LicenseV2/back";
 
@@ -45,6 +53,7 @@ export function LicenseCardBack({
   qrDataUrl,
   signatures,
   frameless = false,
+  template = DEFAULT_TEMPLATE,
 }: {
   /** Verification QR — must be ECC-H (the QR-logo layer covers its center). */
   qrDataUrl: string | null;
@@ -55,6 +64,8 @@ export function LicenseCardBack({
   signatures?: BackSignatureVisibility;
   /** Print mode: no screen chrome (radius/border/shadow) — used for PNG export. */
   frameless?: boolean;
+  /** Org artifact template; omitted = built-in artwork (zero-config parity). */
+  template?: ResolvedTemplate;
 }) {
   return (
     <div
@@ -68,16 +79,25 @@ export function LicenseCardBack({
         {LAYERS.map((layer, i) => {
           const key = `layer-${i}`;
           switch (layer.kind) {
-            case "static":
+            case "static": {
+              const override = suppressedOverride(
+                template,
+                "license-back",
+                layer.file,
+              );
+              if (override) {
+                return <TemplateTextLayer key={key} override={override} />;
+              }
               return (
                 // biome-ignore lint/performance/noImgElement: fixed local SVG artwork layers, not content images
                 <img
                   key={key}
-                  src={`${ART}/${layer.file}`}
+                  src={layerSrc(template, "license-back", layer.file)}
                   alt=""
                   className={LAYER}
                 />
               );
+            }
             case "signature":
               if (!signatures?.[layer.slot]) return null;
               return (

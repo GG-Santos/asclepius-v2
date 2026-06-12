@@ -143,21 +143,61 @@ export async function submitQuiz(
     return { error: "No attempts remaining." };
   }
 
+  // Resolve the question set this attempt actually presented. Fixed quiz
+  // questions are always graded; bank-drawn questions are validated against
+  // the linked bank and the expected draw size so a tampered form can't
+  // shrink the denominator or smuggle foreign questions in.
+  const presentedIds = formData
+    .getAll("presented")
+    .map((v) => String(v))
+    .filter(Boolean);
+  const fixedIds = new Set(quiz.questions.map((q) => q.id));
+  const drawnIds = [...new Set(presentedIds.filter((id) => !fixedIds.has(id)))];
+
+  const staleAttempt = {
+    error: "This attempt is out of date — reload the quiz and try again.",
+  };
+  let drawnQuestions: GradableQuestion[] = [];
+  if (quiz.bankId && quiz.bankDrawCount) {
+    const bankSize = await coursesPrisma.bankQuestion.count({
+      where: { bankId: quiz.bankId },
+    });
+    const expected = Math.min(quiz.bankDrawCount, bankSize);
+    const fromBank = await coursesPrisma.bankQuestion.findMany({
+      where: { id: { in: drawnIds }, bankId: quiz.bankId },
+    });
+    if (drawnIds.length !== expected || fromBank.length !== expected) {
+      return staleAttempt;
+    }
+    drawnQuestions = fromBank.map((q) => ({
+      id: q.id,
+      type: q.type,
+      points: q.points,
+      options: q.options,
+      correctAnswers: q.correctAnswers,
+    }));
+  } else if (drawnIds.length > 0) {
+    return staleAttempt;
+  }
+
+  const gradable: GradableQuestion[] = [
+    ...quiz.questions.map((q) => ({
+      id: q.id,
+      type: q.type,
+      points: q.points,
+      options: q.options,
+      correctAnswers: q.correctAnswers,
+    })),
+    ...drawnQuestions,
+  ];
+
   // Collect answers: q-<id> single value, or q-<id> repeated for multi-answer.
   const answers: AnswerMap = {};
-  for (const q of quiz.questions) {
+  for (const q of gradable) {
     const values = formData.getAll(`q-${q.id}`).map((v) => String(v));
     if (q.type === "MULTIPLE_ANSWER") answers[q.id] = values;
     else answers[q.id] = values[0] ?? "";
   }
-
-  const gradable: GradableQuestion[] = quiz.questions.map((q) => ({
-    id: q.id,
-    type: q.type,
-    points: q.points,
-    options: q.options,
-    correctAnswers: q.correctAnswers,
-  }));
   const result = gradeQuiz(
     { passingScore: quiz.passingScore, questions: gradable },
     answers,

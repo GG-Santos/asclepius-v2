@@ -4,6 +4,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 const OPTIONS = [
+  { value: "1", label: "1d" },
   { value: "7", label: "7d" },
   { value: "30", label: "30d" },
   { value: "90", label: "90d" },
@@ -14,7 +15,9 @@ export function RangePicker({ value }: { value: number }) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
-  const current = String(value);
+  // Highlight follows the URL (instant on click), not the server-rendered
+  // prop — the prop only seeds the default when no ?range= is present.
+  const current = params.get("range") ?? String(value);
 
   function select(v: string) {
     const next = new URLSearchParams(params.toString());

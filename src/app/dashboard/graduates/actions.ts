@@ -1,12 +1,25 @@
 "use server";
 
+import type { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import {
+  computeSchemeResult,
+  parseGradingScheme,
+  parseSchemeScores,
+} from "@/lib/assessment-scheme";
 import { authProvision } from "@/lib/auth-provision";
 import { uploadImage } from "@/lib/blob";
-import { composeName, isLegacyBatch, parseLooseDate } from "@/lib/graduate";
+import {
+  composeName,
+  isLegacyBatch,
+  isRecordsOnlyBatch,
+  parseLooseDate,
+} from "@/lib/graduate";
+import { getExpiryPolicy } from "@/lib/org-settings";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/session";
+import type { GraduateSixScores } from "@/lib/student";
 import { graduateInputSchema } from "@/lib/validation";
 
 const SCORE_KEYS = [
@@ -34,11 +47,13 @@ async function recomputeBatchRankings(batchCode?: string | null) {
       scorePAS: true,
       scoreCCST: true,
       scoreCCSM: true,
+      bonusPoints: true,
     },
   });
   const totals = rows.map((g) => ({
     id: g.id,
-    total: SCORE_KEYS.reduce((s, k) => s + (g[k] ?? 0), 0),
+    total:
+      SCORE_KEYS.reduce((s, k) => s + (g[k] ?? 0), 0) + (g.bonusPoints ?? 0),
   }));
   const ranked = totals
     .filter((g) => g.total > 0)
@@ -91,8 +106,10 @@ function buildData(input: ReturnType<typeof graduateInputSchema.parse>) {
     scorePAS: input.scorePAS ?? null,
     scoreCCST: input.scoreCCST ?? null,
     scoreCCSM: input.scoreCCSM ?? null,
-    status: input.status,
-    // Legacy is automatic: batches 5 and below only.
+    bonusPoints: input.bonusPoints ?? null,
+    // Records-only batches (11, 16) stay archived regardless of the form.
+    status: isRecordsOnlyBatch(input.batchCode) ? "ARCHIVED" : input.status,
+    // Legacy is automatic: batch 5 only (no per-assessment grades on file).
     legacy: isLegacyBatch(input.batchCode),
     notes: input.notes ?? null,
     // ranking is computed automatically (recomputeBatchRankings), not entered.
@@ -164,6 +181,76 @@ export async function createGraduate(
   return { ok: true };
 }
 
+/**
+ * Granular scheme entry (graduate edit page): when `comp:<key>` fields were
+ * posted, persist the raw assessment scores + bonus on the linked student
+ * record and return the recomputed six proficiency columns + bonus for the
+ * graduate row. Returns {} when the form used direct column entry.
+ */
+async function applySchemeEntry(
+  formData: FormData,
+  graduate: { lcn: string; fromStudentEnrollmentNo: string | null } | null,
+): Promise<
+  Record<string, never> | (GraduateSixScores & { bonusPoints: number | null })
+> {
+  const granularGrades: Record<string, number | null> = {};
+  let sawComp = false;
+  for (const [key, value] of formData.entries()) {
+    const compMatch = /^comp:([a-z][a-z0-9-]*)$/.exec(key);
+    if (!compMatch) continue;
+    sawComp = true;
+    const s = String(value).trim();
+    const n = Number(s);
+    granularGrades[compMatch[1]] = s !== "" && Number.isFinite(n) ? n : null;
+  }
+  if (!sawComp || !graduate) return {};
+
+  const student = graduate.fromStudentEnrollmentNo
+    ? await prisma.student.findUnique({
+        where: { enrollmentNo: graduate.fromStudentEnrollmentNo },
+        include: { batch: { select: { gradingScheme: true } } },
+      })
+    : await prisma.student.findFirst({
+        where: { graduatedToLcn: graduate.lcn },
+        include: { batch: { select: { gradingScheme: true } } },
+      });
+  const scheme = student
+    ? parseGradingScheme(student.batch?.gradingScheme)
+    : null;
+  if (!student || !scheme) return {};
+
+  const bonusRaw = String(formData.get("bonusPoints") ?? "").trim();
+  const bonusN = Number(bonusRaw);
+  const bonusPoints =
+    bonusRaw !== "" && Number.isFinite(bonusN) ? bonusN : null;
+  const bonusNote = String(formData.get("bonusNote") ?? "").trim() || null;
+
+  // Keep any raw scores outside the scheme (defensive), overlay the posted set.
+  const existing =
+    student.granularGrades &&
+    typeof student.granularGrades === "object" &&
+    !Array.isArray(student.granularGrades)
+      ? (student.granularGrades as Record<string, unknown>)
+      : {};
+  const merged = { ...existing, ...granularGrades };
+
+  await prisma.student.update({
+    where: { id: student.id },
+    data: {
+      granularGrades: merged as Prisma.InputJsonValue,
+      bonusPoints,
+      bonusNote,
+    },
+  });
+
+  const result = computeSchemeResult(
+    scheme,
+    parseSchemeScores(merged as Prisma.JsonValue, scheme),
+    bonusPoints,
+  );
+  return { ...result.six, bonusPoints };
+}
+
 export async function updateGraduate(
   id: string,
   _prev: ActionState,
@@ -190,15 +277,22 @@ export async function updateGraduate(
 
   const previous = await prisma.graduate.findUnique({
     where: { id },
-    select: { batchCode: true },
+    select: { batchCode: true, lcn: true, fromStudentEnrollmentNo: true },
   });
   const { batchId, batchCode } = await resolveBatch(parsed.data.batchCode);
   const photoId = await maybeUploadPhoto(formData, session.user.id);
+
+  // Granular scheme entry: raw assessment scores posted as comp:<key> are
+  // saved to the linked STUDENT record, and the six proficiency columns plus
+  // the Total Evaluation are recomputed through the batch's grading scheme —
+  // the graduate's columns are never edited directly in this mode.
+  const schemeScoreOverride = await applySchemeEntry(formData, previous);
 
   await prisma.graduate.update({
     where: { id },
     data: {
       ...buildData(parsed.data),
+      ...schemeScoreOverride,
       batchId,
       batchCode,
       ...(photoId ? { photoId } : {}),
@@ -234,6 +328,27 @@ const accountSchema = z.object({
   email: z.string().trim().toLowerCase().email("Enter a valid email"),
   password: z.string().min(8, "At least 8 characters"),
 });
+
+/**
+ * Admin grants/revokes portal blog authoring for a graduate account (R8).
+ * Revocation blocks further mutations (the flag is re-read per action);
+ * existing posts remain.
+ */
+export async function setGraduateCanBlog(
+  formData: FormData,
+): Promise<{ ok?: boolean; error?: string }> {
+  await requireAdmin();
+  const id = String(formData.get("userId") ?? "");
+  const canBlog = String(formData.get("canBlog") ?? "") === "true";
+  if (!id) return { error: "Missing account." };
+  const target = await prisma.user.findUnique({ where: { id } });
+  if (!target || target.role !== "graduate") {
+    return { error: "Not a graduate account." };
+  }
+  await prisma.user.update({ where: { id }, data: { canBlog } });
+  revalidatePath("/dashboard/graduates");
+  return { ok: true };
+}
 
 /** Admin creates a graduate portal account for a Graduate (invite/override). */
 export async function createGraduateAccount(
@@ -283,9 +398,9 @@ function formatRawDate(d: Date): string {
 }
 
 /**
- * One-click renewal: the license gains one year past its current expiry, and
- * the previous expiry becomes the latest re-certification date. With no
- * expiry on record, the year counts from today.
+ * One-click renewal: the license gains the policy validity period past its
+ * current expiry, and the previous expiry becomes the latest re-certification
+ * date. With no expiry on record, the period counts from today.
  */
 export async function renewGraduate(formData: FormData): Promise<void> {
   await requireAdmin();
@@ -295,9 +410,10 @@ export async function renewGraduate(formData: FormData): Promise<void> {
   const g = await prisma.graduate.findUnique({ where: { id } });
   if (!g || g.status !== "GRADUATE") return;
 
+  const { licenseValidityYears } = await getExpiryPolicy();
   const base = g.expiresAt ?? new Date();
   const newExpiry = new Date(base);
-  newExpiry.setFullYear(newExpiry.getFullYear() + 1);
+  newExpiry.setFullYear(newExpiry.getFullYear() + licenseValidityYears);
 
   await prisma.graduate.update({
     where: { id },
@@ -309,6 +425,9 @@ export async function renewGraduate(formData: FormData): Promise<void> {
         (g.expiresAt ? formatRawDate(g.expiresAt) : g.registrationRaw),
       expiresAt: newExpiry,
       expirationRaw: formatRawDate(newExpiry),
+      // R14: wall-clock stamp of the renewal ACTION — drives the
+      // recertified view and batch ID export.
+      recertifiedAt: new Date(),
     },
   });
 
@@ -330,14 +449,19 @@ export async function setGraduateStatus(formData: FormData): Promise<void> {
 }
 
 /**
- * Auto-archive graduates whose license has been expired for 2+ years
- * (GRADUATE → ARCHIVED). Idempotent — a no-op when nothing qualifies. Run
- * opportunistically on admin app load (and safe to call from a cron route).
+ * Auto-archive graduates whose license has been expired past the policy
+ * grace period (GRADUATE → ARCHIVED). Idempotent — a no-op when nothing
+ * qualifies. Run opportunistically on admin app load (and safe to call from
+ * a cron route).
  */
-export async function autoArchiveExpired(): Promise<{ archived: number }> {
+export async function autoArchiveExpired(): Promise<{
+  archived: number;
+  graceYears: number;
+}> {
   await requireAdmin();
+  const { archiveGraceYears } = await getExpiryPolicy();
   const cutoff = new Date();
-  cutoff.setFullYear(cutoff.getFullYear() - 2);
+  cutoff.setFullYear(cutoff.getFullYear() - archiveGraceYears);
   const res = await prisma.graduate.updateMany({
     where: { status: "GRADUATE", expiresAt: { lt: cutoff } },
     data: { status: "ARCHIVED" },
@@ -346,5 +470,5 @@ export async function autoArchiveExpired(): Promise<{ archived: number }> {
     revalidatePath("/dashboard/graduates");
     revalidatePath("/dashboard/batches");
   }
-  return { archived: res.count };
+  return { archived: res.count, graceYears: archiveGraceYears };
 }

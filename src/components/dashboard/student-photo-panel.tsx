@@ -18,6 +18,13 @@ type Area = { x: number; y: number; width: number; height: number };
 export type SaveState = "idle" | "saving" | "done";
 type CardState = "idle" | "active" | "done" | "error";
 
+/**
+ * Staging lifecycle of a newly chosen photo. The parent form blocks submit
+ * while "busy" (scan/upload in flight) and while "failed" (the chosen photo
+ * never attached) — saving in either state would silently drop the photo.
+ */
+export type PhotoStaging = "idle" | "busy" | "failed" | "staged";
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function cropToFile(src: string, area: Area): Promise<File> {
@@ -28,22 +35,19 @@ async function cropToFile(src: string, area: Area): Promise<File> {
   img.crossOrigin = "anonymous";
   img.src = src;
   await img.decode();
+  // Cap output at the artifact photo-slot resolution (≤1200px wide, 4:5) —
+  // full-resolution phone crops produce PNGs past the upload's 5MB limit.
+  const MAX_W = 1200;
+  const scale = Math.min(1, MAX_W / area.width);
+  const outW = Math.round(area.width * scale);
+  const outH = Math.round(area.height * scale);
   const canvas = document.createElement("canvas");
-  canvas.width = Math.round(area.width);
-  canvas.height = Math.round(area.height);
+  canvas.width = outW;
+  canvas.height = outH;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Canvas unsupported");
-  ctx.drawImage(
-    img,
-    area.x,
-    area.y,
-    area.width,
-    area.height,
-    0,
-    0,
-    area.width,
-    area.height,
-  );
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(img, area.x, area.y, area.width, area.height, 0, 0, outW, outH);
   const blob: Blob = await new Promise((res, rej) =>
     canvas.toBlob(
       (b) => (b ? res(b) : rej(new Error("toBlob failed"))),
@@ -70,40 +74,61 @@ function uploadWithProgress(
       if (e.lengthComputable)
         onProgress(Math.round((e.loaded / e.total) * 100));
     };
-    xhr.onload = () =>
-      xhr.status >= 200 && xhr.status < 300
-        ? resolve(JSON.parse(xhr.responseText))
-        : reject(new Error("Upload failed"));
-    xhr.onerror = () => reject(new Error("Upload failed"));
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(JSON.parse(xhr.responseText));
+        return;
+      }
+      // Surface the server's reason (e.g. "File exceeds 5MB").
+      let message = `Upload failed (${xhr.status})`;
+      try {
+        const body = JSON.parse(xhr.responseText) as { error?: string };
+        if (body.error) message = body.error;
+      } catch {
+        // keep the status fallback
+      }
+      reject(new Error(message));
+    };
+    xhr.onerror = () => reject(new Error("Upload failed (network)"));
     xhr.send(fd);
   });
 }
 
-/** Submit to VirusTotal and poll until the analysis completes. */
+/**
+ * Submit to VirusTotal and poll until the analysis completes. FAIL-OPEN:
+ * any scan-service problem (no key, rate limit, network, timeout) degrades
+ * to "skipped" so the photo pipeline never wedges on the scanner — the
+ * upload only blocks when a completed analysis actually flags the file.
+ */
 async function scanFile(
   file: File,
 ): Promise<{ ok: boolean; malicious: number; skipped?: boolean }> {
-  const fd = new FormData();
-  fd.append("file", file);
-  const start = await fetch("/api/scan", { method: "POST", body: fd });
-  if (!start.ok) throw new Error("scan start failed");
-  const { analysisId, skipped } = (await start.json()) as {
-    analysisId?: string;
-    skipped?: boolean;
-  };
-  if (skipped || !analysisId) return { ok: true, malicious: 0, skipped: true };
+  try {
+    const fd = new FormData();
+    fd.append("file", file);
+    const start = await fetch("/api/scan", { method: "POST", body: fd });
+    if (!start.ok) return { ok: true, malicious: 0, skipped: true };
+    const { analysisId, skipped } = (await start.json()) as {
+      analysisId?: string;
+      skipped?: boolean;
+    };
+    if (skipped || !analysisId)
+      return { ok: true, malicious: 0, skipped: true };
 
-  for (let i = 0; i < 30; i++) {
-    await sleep(1500);
-    const r = await fetch(`/api/scan/${analysisId}`, { cache: "no-store" });
-    if (!r.ok) continue;
-    const d = (await r.json()) as { status?: string; malicious?: number };
-    if (d.status === "completed") {
-      return { ok: (d.malicious ?? 0) === 0, malicious: d.malicious ?? 0 };
+    for (let i = 0; i < 30; i++) {
+      await sleep(1500);
+      const r = await fetch(`/api/scan/${analysisId}`, { cache: "no-store" });
+      if (!r.ok) continue;
+      const d = (await r.json()) as { status?: string; malicious?: number };
+      if (d.status === "completed") {
+        return { ok: (d.malicious ?? 0) === 0, malicious: d.malicious ?? 0 };
+      }
     }
+    // Inconclusive (timed out) — allow but flag.
+    return { ok: true, malicious: 0, skipped: true };
+  } catch {
+    return { ok: true, malicious: 0, skipped: true };
   }
-  // Inconclusive (timed out) — allow but flag.
-  return { ok: true, malicious: 0 };
 }
 
 const ICONS = {
@@ -221,11 +246,14 @@ export function StudentPhotoPanel({
   currentUrl,
   saveState = "idle",
   persisted = false,
+  onStagingChange,
 }: {
   currentUrl?: string | null;
   saveState?: SaveState;
   // True when editing an already-saved record (its photo is already stored).
   persisted?: boolean;
+  /** Reports the staging lifecycle so the form can gate its submit. */
+  onStagingChange?: (staging: PhotoStaging) => void;
 }) {
   const inputId = useId();
   const hasExisting = Boolean(currentUrl);
@@ -235,6 +263,20 @@ export function StudentPhotoPanel({
   const [open, setOpen] = useState(false);
   const [preview, setPreview] = useState<string | null>(currentUrl ?? null);
   const [assetId, setAssetId] = useState("");
+  const [staging, setStagingState] = useState<PhotoStaging>("idle");
+  const setStaging = (next: PhotoStaging) => {
+    setStagingState(next);
+    onStagingChange?.(next);
+  };
+  /** Drop the staged photo entirely (failure recovery): back to the saved one. */
+  function removeStaged() {
+    setPreview(currentUrl ?? null);
+    setAssetId("");
+    setVt(hasExisting ? "done" : "idle");
+    setVercel(hasExisting ? 100 : 0);
+    setVercelState(hasExisting ? "done" : "idle");
+    setStaging("idle");
+  }
 
   // An existing photo is already scanned + stored, so show all three complete.
   const [vt, setVt] = useState<CardState>(hasExisting ? "done" : "idle");
@@ -271,6 +313,7 @@ export function StudentPhotoPanel({
       return;
     }
     setOpen(false);
+    setStaging("busy");
     try {
       const file = await cropToFile(rawSrc, area);
       setPreview(URL.createObjectURL(file));
@@ -283,13 +326,15 @@ export function StudentPhotoPanel({
         setVt("error");
         setVercelState("idle");
         setAssetId("");
+        setStaging("failed");
         toast.error(
           `VirusTotal flagged this file (${scan.malicious}). Upload blocked.`,
         );
         return;
       }
       setVt("done");
-      if (scan.skipped) toast.message("VirusTotal scan skipped (no key).");
+      if (scan.skipped)
+        toast.message("VirusTotal scan skipped — upload continues.");
 
       // 2) Vercel Blob — real upload progress
       setVercel(0);
@@ -298,11 +343,17 @@ export function StudentPhotoPanel({
       setVercel(100);
       setVercelState("done");
       setAssetId(res.id);
+      setStaging("staged");
       toast.success("Photo scanned and uploaded.");
-    } catch {
+    } catch (e) {
       setVt((s) => (s === "active" ? "idle" : s));
       setVercelState("idle");
-      toast.error("Photo processing failed.");
+      setStaging("failed");
+      toast.error(
+        e instanceof Error && e.message
+          ? `${e.message} — retry or remove the photo.`
+          : "Photo processing failed. Retry or remove the photo.",
+      );
     }
   }
 
@@ -360,6 +411,32 @@ export function StudentPhotoPanel({
         >
           <Crop aria-hidden /> Edit current photo
         </Button>
+      )}
+
+      {staging === "failed" && (
+        <div className="rounded-lg border border-error/30 bg-error/5 p-3 text-xs text-error">
+          <p className="mb-2 font-medium">
+            The photo didn't attach — the record would save without it.
+          </p>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={editCurrent}
+            >
+              Retry
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={removeStaged}
+            >
+              Remove photo
+            </Button>
+          </div>
+        </div>
       )}
 
       <div className="grid gap-2">

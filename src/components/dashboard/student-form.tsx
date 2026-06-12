@@ -18,9 +18,14 @@ import {
 import { BatchSelect } from "@/components/dashboard/batch-select";
 import { ConfirmDialog } from "@/components/dashboard/confirm-button";
 import { PromoteStudentDialog } from "@/components/dashboard/promote-student-dialog";
-import { StudentPhotoPanel } from "@/components/dashboard/student-photo-panel";
+import { SchemeGradeEntry } from "@/components/dashboard/scheme-grade-entry";
+import {
+  type PhotoStaging,
+  StudentPhotoPanel,
+} from "@/components/dashboard/student-photo-panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import type { GradingScheme } from "@/lib/assessment-scheme";
 import {
   computeQuizTotal,
   type GranularGrades,
@@ -29,8 +34,8 @@ import {
   PRACTICAL_DEFS,
   type PracticalKey,
   QUIZ_DEFS,
-  QUIZ_TOTAL_MAX,
-  type QuizKey,
+  type QuizDef,
+  quizMaxTotal,
 } from "@/lib/student-grades";
 
 export type StudentDefaults = {
@@ -40,17 +45,12 @@ export type StudentDefaults = {
   lastName?: string;
   suffix?: string;
   batchCode?: string;
-  // Periodic quiz raw scores
-  q1?: string;
-  q2?: string;
-  q3?: string;
-  q4?: string;
-  q5?: string;
-  q6?: string;
-  q7?: string;
-  q8?: string;
-  q9?: string;
-  q10?: string;
+  // Periodic quiz raw scores, keyed by positional qN (count follows the batch).
+  quizGrades?: Record<string, string>;
+  // Scheme batches: component-keyed raw scores + bonus (R2/R6).
+  schemeGrades?: Record<string, string>;
+  bonusPoints?: string;
+  bonusNote?: string;
   // Practical exam raw scores
   scoreFWE?: string;
   scoreEP?: string;
@@ -103,6 +103,8 @@ export function StudentForm({
   successMessage = "Student saved.",
   redirectTo = "/dashboard/students",
   studentId,
+  quizDefsByBatch = {},
+  schemesByBatch = {},
 }: {
   action: (
     prev: StudentActionState,
@@ -113,6 +115,10 @@ export function StudentForm({
   successMessage?: string;
   redirectTo?: string;
   studentId?: string;
+  /** Custom quiz definitions per batch code; absent batches use legacy q1–q10. */
+  quizDefsByBatch?: Record<string, QuizDef[]>;
+  /** Full assessment schemes per batch code (supersede quiz defs — R11). */
+  schemesByBatch?: Record<string, GradingScheme>;
 }) {
   const [state, formAction, pending] = useActionState(action, {});
   const router = useRouter();
@@ -127,18 +133,17 @@ export function StudentForm({
   const [saveOpen, setSaveOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
+  // Quiz definitions follow the SELECTED batch — switching batches re-keys
+  // the table (positional qN values carry over where the keys overlap).
+  const [batchCode, setBatchCode] = useState(defaults.batchCode ?? "");
+  const activeScheme = schemesByBatch[batchCode] ?? null;
+  const activeQuizDefs: readonly QuizDef[] =
+    quizDefsByBatch[batchCode] ?? QUIZ_DEFS;
+
   // Controlled quiz score state for live pass/fail display
-  const [quizScores, setQuizScores] = useState<
-    Partial<Record<QuizKey, string>>
-  >(() => {
-    const init: Partial<Record<QuizKey, string>> = {};
-    for (const def of QUIZ_DEFS) {
-      init[def.key] =
-        (defaults[def.key as keyof StudentDefaults] as string | undefined) ??
-        "";
-    }
-    return init;
-  });
+  const [quizScores, setQuizScores] = useState<Record<string, string>>(() => ({
+    ...(defaults.quizGrades ?? {}),
+  }));
 
   // Controlled practical score state
   const [practicalScores, setPracticalScores] = useState<
@@ -155,12 +160,13 @@ export function StudentForm({
 
   const { total: quizRawTotal, entered: quizEntered } = useMemo(() => {
     const grades: GranularGrades = {};
-    for (const def of QUIZ_DEFS) {
+    for (const def of activeQuizDefs) {
       const v = Number.parseFloat(quizScores[def.key] ?? "");
       if (!Number.isNaN(v)) grades[def.key] = v;
     }
-    return computeQuizTotal(grades);
-  }, [quizScores]);
+    return computeQuizTotal(grades, activeQuizDefs);
+  }, [quizScores, activeQuizDefs]);
+  const quizMax = quizMaxTotal(activeQuizDefs);
 
   const saveState = pending ? "saving" : state.ok ? "done" : "idle";
 
@@ -174,7 +180,23 @@ export function StudentForm({
     if (state.error) toast.error(state.error);
   }, [state, router, successMessage, redirectTo]);
 
+  // Photo staging gate: saving while the scan/upload pipeline is in flight
+  // (or after it failed) would silently persist the record without its photo.
+  const [photoStaging, setPhotoStaging] = useState<PhotoStaging>("idle");
+
   function onSubmitIntercept(e: React.FormEvent<HTMLFormElement>) {
+    if (photoStaging === "busy") {
+      e.preventDefault();
+      toast.message("Photo is still uploading — save once it finishes.");
+      return;
+    }
+    if (photoStaging === "failed") {
+      e.preventDefault();
+      toast.error(
+        "The photo didn't attach. Retry the upload or remove the photo first.",
+      );
+      return;
+    }
     if (!confirmedRef.current) {
       e.preventDefault();
       setSaveOpen(true);
@@ -343,6 +365,7 @@ export function StudentForm({
                 currentUrl={defaults.photoUrl}
                 saveState={saveState}
                 persisted={Boolean(studentId)}
+                onStagingChange={setPhotoStaging}
               />
             </div>
 
@@ -371,6 +394,7 @@ export function StudentForm({
                   <BatchSelect
                     name="batchCode"
                     defaultValue={defaults.batchCode}
+                    onValueChange={setBatchCode}
                   />
                 </Labeled>
 
@@ -414,187 +438,213 @@ export function StudentForm({
                 </div>
               </div>
 
-              {/* Periodic Examinations */}
-              <div id="student-quizzes" className="scroll-mt-24">
-                <h2 className="mb-1 border-l-2 border-accent pl-2 font-semibold text-on-surface">
-                  Periodic Examinations
-                </h2>
-                <p className="mb-3 text-xs text-on-surface-variant">
-                  Enter raw scores. Running total feeds the SJE score on
-                  graduation.
-                </p>
-                <div className="overflow-hidden rounded-md border border-outline-variant/60">
-                  <table className="w-full text-left text-xs text-on-surface">
-                    <thead className="bg-surface-container">
-                      <tr>
-                        <th className="border-outline-variant/60 border-b px-3 py-2 font-semibold">
-                          Quiz
-                        </th>
-                        <th className="border-outline-variant/60 border-b px-3 py-2 font-semibold">
-                          Topics
-                        </th>
-                        <th className="border-outline-variant/60 border-b px-3 py-2 font-semibold text-center">
-                          Max
-                        </th>
-                        <th className="border-outline-variant/60 border-b px-3 py-2 font-semibold text-center">
-                          Pass
-                        </th>
-                        <th className="border-outline-variant/60 border-b px-3 py-2 font-semibold text-center">
-                          Score
-                        </th>
-                        <th className="border-outline-variant/60 border-b px-3 py-2 font-semibold text-center">
-                          Status
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {QUIZ_DEFS.map((def) => {
-                        const raw = quizScores[def.key] ?? "";
-                        const num = Number.parseFloat(raw);
-                        const entered = raw !== "" && !Number.isNaN(num);
-                        const pass = entered && isQuizPassing(def.key, num);
-                        return (
-                          <tr key={def.key} className="even:bg-surface-low">
-                            <td className="border-outline-variant/60 border-r px-3 py-2 font-medium">
-                              {def.label}
-                            </td>
-                            <td className="border-outline-variant/60 border-r px-3 py-2 text-on-surface-variant">
-                              {def.topics}
+              {activeScheme ? (
+                /* Scheme-driven entry replaces BOTH legacy sections (R8). */
+                <div id="student-quizzes" className="scroll-mt-24">
+                  <h2 className="mb-1 border-l-2 border-accent pl-2 font-semibold text-on-surface">
+                    Assessments
+                  </h2>
+                  <p className="mb-3 text-xs text-on-surface-variant">
+                    This batch grades through its own assessment scheme
+                    {activeScheme.mode === "total-points"
+                      ? " (total points)"
+                      : " (weighted categories)"}
+                    . Enter raw scores per component.
+                  </p>
+                  <SchemeGradeEntry
+                    scheme={activeScheme}
+                    defaults={defaults.schemeGrades ?? {}}
+                    defaultBonus={defaults.bonusPoints ?? ""}
+                    defaultBonusNote={defaults.bonusNote ?? ""}
+                  />
+                </div>
+              ) : (
+                <>
+                  {/* Periodic Examinations */}
+                  <div id="student-quizzes" className="scroll-mt-24">
+                    <h2 className="mb-1 border-l-2 border-accent pl-2 font-semibold text-on-surface">
+                      Periodic Examinations
+                    </h2>
+                    <p className="mb-3 text-xs text-on-surface-variant">
+                      Enter raw scores. Running total feeds the SJE score on
+                      graduation.
+                    </p>
+                    <div className="overflow-hidden rounded-md border border-outline-variant/60">
+                      <table className="w-full text-left text-xs text-on-surface">
+                        <thead className="bg-surface-container">
+                          <tr>
+                            <th className="border-outline-variant/60 border-b px-3 py-2 font-semibold">
+                              Quiz
+                            </th>
+                            <th className="border-outline-variant/60 border-b px-3 py-2 font-semibold">
+                              Topics
+                            </th>
+                            <th className="border-outline-variant/60 border-b px-3 py-2 font-semibold text-center">
+                              Max
+                            </th>
+                            <th className="border-outline-variant/60 border-b px-3 py-2 font-semibold text-center">
+                              Pass
+                            </th>
+                            <th className="border-outline-variant/60 border-b px-3 py-2 font-semibold text-center">
+                              Score
+                            </th>
+                            <th className="border-outline-variant/60 border-b px-3 py-2 font-semibold text-center">
+                              Status
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {activeQuizDefs.map((def) => {
+                            const raw = quizScores[def.key] ?? "";
+                            const num = Number.parseFloat(raw);
+                            const entered = raw !== "" && !Number.isNaN(num);
+                            const pass =
+                              entered &&
+                              isQuizPassing(def.key, num, activeQuizDefs);
+                            return (
+                              <tr key={def.key} className="even:bg-surface-low">
+                                <td className="border-outline-variant/60 border-r px-3 py-2 font-medium">
+                                  {def.label}
+                                </td>
+                                <td className="border-outline-variant/60 border-r px-3 py-2 text-on-surface-variant">
+                                  {def.topics}
+                                </td>
+                                <td className="border-outline-variant/60 border-r px-3 py-2 text-center font-mono">
+                                  {def.maxScore}
+                                </td>
+                                <td className="border-outline-variant/60 border-r px-3 py-2 text-center font-mono">
+                                  {def.passing}
+                                </td>
+                                <td className="border-outline-variant/60 border-r px-3 py-2 text-center">
+                                  <input
+                                    type="number"
+                                    name={def.key}
+                                    min={0}
+                                    max={def.maxScore}
+                                    step={1}
+                                    value={raw}
+                                    onChange={(e) =>
+                                      setQuizScores((s) => ({
+                                        ...s,
+                                        [def.key]: e.target.value,
+                                      }))
+                                    }
+                                    className="w-16 rounded border border-outline-variant/60 bg-surface px-2 py-1 text-center font-mono text-on-surface focus:outline-none focus:ring-1 focus:ring-accent"
+                                    placeholder="—"
+                                  />
+                                </td>
+                                <td className="px-3 py-2 text-center">
+                                  <PassBadge pass={pass} entered={entered} />
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                        <tfoot className="border-outline-variant/60 border-t bg-surface-highest font-semibold">
+                          <tr>
+                            <td
+                              colSpan={2}
+                              className="border-outline-variant/60 border-r px-3 py-2"
+                            >
+                              Quiz Total
                             </td>
                             <td className="border-outline-variant/60 border-r px-3 py-2 text-center font-mono">
-                              {def.maxScore}
+                              {quizMax}
                             </td>
                             <td className="border-outline-variant/60 border-r px-3 py-2 text-center font-mono">
-                              {def.passing}
+                              {Math.round(quizMax / 2)}
                             </td>
-                            <td className="border-outline-variant/60 border-r px-3 py-2 text-center">
-                              <input
-                                type="number"
-                                name={def.key}
-                                min={0}
-                                max={def.maxScore}
-                                step={1}
-                                value={raw}
-                                onChange={(e) =>
-                                  setQuizScores((s) => ({
-                                    ...s,
-                                    [def.key]: e.target.value,
-                                  }))
-                                }
-                                className="w-16 rounded border border-outline-variant/60 bg-surface px-2 py-1 text-center font-mono text-on-surface focus:outline-none focus:ring-1 focus:ring-accent"
-                                placeholder="—"
-                              />
+                            <td className="border-outline-variant/60 border-r px-3 py-2 text-center font-mono">
+                              {quizEntered > 0 ? quizRawTotal : "—"}
                             </td>
-                            <td className="px-3 py-2 text-center">
-                              <PassBadge pass={pass} entered={entered} />
+                            <td className="px-3 py-2 text-center text-on-surface-variant text-xs">
+                              {quizEntered > 0
+                                ? `${Math.round((quizRawTotal / quizMax) * 10000) / 100}% SJE`
+                                : "—"}
                             </td>
                           </tr>
-                        );
-                      })}
-                    </tbody>
-                    <tfoot className="border-outline-variant/60 border-t bg-surface-highest font-semibold">
-                      <tr>
-                        <td
-                          colSpan={2}
-                          className="border-outline-variant/60 border-r px-3 py-2"
-                        >
-                          Quiz Total
-                        </td>
-                        <td className="border-outline-variant/60 border-r px-3 py-2 text-center font-mono">
-                          {QUIZ_TOTAL_MAX}
-                        </td>
-                        <td className="border-outline-variant/60 border-r px-3 py-2 text-center font-mono">
-                          400
-                        </td>
-                        <td className="border-outline-variant/60 border-r px-3 py-2 text-center font-mono">
-                          {quizEntered > 0 ? quizRawTotal : "—"}
-                        </td>
-                        <td className="px-3 py-2 text-center text-on-surface-variant text-xs">
-                          {quizEntered > 0
-                            ? `${Math.round((quizRawTotal / QUIZ_TOTAL_MAX) * 10000) / 100}% SJE`
-                            : "—"}
-                        </td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              </div>
+                        </tfoot>
+                      </table>
+                    </div>
+                  </div>
 
-              {/* Final & Practical Examinations */}
-              <div id="student-practicals" className="scroll-mt-24">
-                <h2 className="mb-1 border-l-2 border-accent pl-2 font-semibold text-on-surface">
-                  Final &amp; Practical Examinations
-                </h2>
-                <p className="mb-3 text-xs text-on-surface-variant">
-                  Enter raw scores. Percentages are computed at graduation.
-                </p>
-                <div className="overflow-hidden rounded-md border border-outline-variant/60">
-                  <table className="w-full text-left text-xs text-on-surface">
-                    <thead className="bg-surface-container">
-                      <tr>
-                        <th className="border-outline-variant/60 border-b px-3 py-2 font-semibold">
-                          Examination
-                        </th>
-                        <th className="border-outline-variant/60 border-b px-3 py-2 font-semibold text-center">
-                          Max
-                        </th>
-                        <th className="border-outline-variant/60 border-b px-3 py-2 font-semibold text-center">
-                          Pass
-                        </th>
-                        <th className="border-outline-variant/60 border-b px-3 py-2 font-semibold text-center">
-                          Score
-                        </th>
-                        <th className="border-outline-variant/60 border-b px-3 py-2 font-semibold text-center">
-                          Status
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {PRACTICAL_DEFS.map((def) => {
-                        const raw = practicalScores[def.key] ?? "";
-                        const num = Number.parseFloat(raw);
-                        const entered = raw !== "" && !Number.isNaN(num);
-                        const pass =
-                          entered && isPracticalPassing(def.key, num);
-                        return (
-                          <tr key={def.key} className="even:bg-surface-low">
-                            <td className="border-outline-variant/60 border-r px-3 py-2">
-                              {def.label}
-                            </td>
-                            <td className="border-outline-variant/60 border-r px-3 py-2 text-center font-mono">
-                              {def.maxScore}
-                            </td>
-                            <td className="border-outline-variant/60 border-r px-3 py-2 text-center font-mono">
-                              {def.passing}
-                            </td>
-                            <td className="border-outline-variant/60 border-r px-3 py-2 text-center">
-                              <input
-                                type="number"
-                                name={def.key}
-                                min={0}
-                                max={def.maxScore}
-                                step={1}
-                                value={raw}
-                                onChange={(e) =>
-                                  setPracticalScores((s) => ({
-                                    ...s,
-                                    [def.key]: e.target.value,
-                                  }))
-                                }
-                                className="w-20 rounded border border-outline-variant/60 bg-surface px-2 py-1 text-center font-mono text-on-surface focus:outline-none focus:ring-1 focus:ring-accent"
-                                placeholder="—"
-                              />
-                            </td>
-                            <td className="px-3 py-2 text-center">
-                              <PassBadge pass={pass} entered={entered} />
-                            </td>
+                  {/* Final & Practical Examinations */}
+                  <div id="student-practicals" className="scroll-mt-24">
+                    <h2 className="mb-1 border-l-2 border-accent pl-2 font-semibold text-on-surface">
+                      Final &amp; Practical Examinations
+                    </h2>
+                    <p className="mb-3 text-xs text-on-surface-variant">
+                      Enter raw scores. Percentages are computed at graduation.
+                    </p>
+                    <div className="overflow-hidden rounded-md border border-outline-variant/60">
+                      <table className="w-full text-left text-xs text-on-surface">
+                        <thead className="bg-surface-container">
+                          <tr>
+                            <th className="border-outline-variant/60 border-b px-3 py-2 font-semibold">
+                              Examination
+                            </th>
+                            <th className="border-outline-variant/60 border-b px-3 py-2 font-semibold text-center">
+                              Max
+                            </th>
+                            <th className="border-outline-variant/60 border-b px-3 py-2 font-semibold text-center">
+                              Pass
+                            </th>
+                            <th className="border-outline-variant/60 border-b px-3 py-2 font-semibold text-center">
+                              Score
+                            </th>
+                            <th className="border-outline-variant/60 border-b px-3 py-2 font-semibold text-center">
+                              Status
+                            </th>
                           </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+                        </thead>
+                        <tbody>
+                          {PRACTICAL_DEFS.map((def) => {
+                            const raw = practicalScores[def.key] ?? "";
+                            const num = Number.parseFloat(raw);
+                            const entered = raw !== "" && !Number.isNaN(num);
+                            const pass =
+                              entered && isPracticalPassing(def.key, num);
+                            return (
+                              <tr key={def.key} className="even:bg-surface-low">
+                                <td className="border-outline-variant/60 border-r px-3 py-2">
+                                  {def.label}
+                                </td>
+                                <td className="border-outline-variant/60 border-r px-3 py-2 text-center font-mono">
+                                  {def.maxScore}
+                                </td>
+                                <td className="border-outline-variant/60 border-r px-3 py-2 text-center font-mono">
+                                  {def.passing}
+                                </td>
+                                <td className="border-outline-variant/60 border-r px-3 py-2 text-center">
+                                  <input
+                                    type="number"
+                                    name={def.key}
+                                    min={0}
+                                    max={def.maxScore}
+                                    step={1}
+                                    value={raw}
+                                    onChange={(e) =>
+                                      setPracticalScores((s) => ({
+                                        ...s,
+                                        [def.key]: e.target.value,
+                                      }))
+                                    }
+                                    className="w-20 rounded border border-outline-variant/60 bg-surface px-2 py-1 text-center font-mono text-on-surface focus:outline-none focus:ring-1 focus:ring-accent"
+                                    placeholder="—"
+                                  />
+                                </td>
+                                <td className="px-3 py-2 text-center">
+                                  <PassBadge pass={pass} entered={entered} />
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>

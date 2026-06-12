@@ -1,5 +1,12 @@
+import type { Prisma } from "@prisma/client";
+import {
+  computeSchemeResult,
+  parseGradingScheme,
+  parseSchemeScores,
+} from "@/lib/assessment-scheme";
 import type { GraduateSixScores, StudentRawScores } from "@/lib/student";
 import { rollupGraduateScores } from "@/lib/student";
+import { type QuizDef, quizDefsFor } from "@/lib/student-grades";
 
 // Graduation verdict = the Total Evaluation (sum of the six weighted points).
 // A student passes at >= 70. Any missing component makes the result
@@ -91,9 +98,66 @@ export function gradeFromSix(six: GraduateSixScores): GradeResult {
   return { six, weighted, verdict, missing };
 }
 
-/** Grade a Student from raw scores (converts via rollupGraduateScores). */
-export function gradeStudent(student: StudentRawScores): GradeResult {
-  return gradeFromSix(rollupGraduateScores(student));
+/** Grade a Student from raw scores (converts via rollupGraduateScores).
+ *  Pass the batch's quiz definitions so SJE follows the batch (R12). */
+export function gradeStudent(
+  student: StudentRawScores,
+  quizDefs?: readonly QuizDef[],
+): GradeResult {
+  return gradeFromSix(rollupGraduateScores(student, quizDefs));
+}
+
+/** What a grading call site needs from the student's batch. */
+export type BatchGradingContext = {
+  gradingScheme?: Prisma.JsonValue | null;
+  quizDefs?: Prisma.JsonValue | null;
+} | null;
+
+export type SchemeStudentScores = StudentRawScores & {
+  bonusPoints?: number | null;
+};
+
+/**
+ * THE grading entry point for every call site: a batch with a gradingScheme
+ * grades through the scheme (weighted-six or total-points, bonus applied);
+ * everything else takes the legacy path unchanged (R3 value parity).
+ */
+export function gradeStudentForBatch(
+  student: SchemeStudentScores,
+  batch: BatchGradingContext,
+): GradeResult {
+  const scheme = parseGradingScheme(batch?.gradingScheme);
+  if (!scheme) {
+    return gradeStudent(student, quizDefsFor(batch?.quizDefs));
+  }
+  const scores = parseSchemeScores(student.granularGrades, scheme);
+  const result = computeSchemeResult(scheme, scores, student.bonusPoints);
+  const six = result.six;
+  // Category schemes can have custom labels while still mapping to the fixed
+  // score columns for certificates. Use the scheme's own 0-100 total for the
+  // in-training verdict/standing instead of reconstructing from those columns.
+  const weighted =
+    result.verdict === "incomplete" ? null : result.weightedTotal;
+  const missing = Object.entries(result.groups)
+    .filter(([, g]) => g && !g.complete)
+    .map(([group]) => group);
+  return { six, weighted, verdict: result.verdict, missing };
+}
+
+/**
+ * The six scores to STORE at promotion for a student of this batch (R9):
+ * scheme rollup when a scheme exists, legacy rollup otherwise.
+ */
+export function rollupForBatch(
+  student: SchemeStudentScores,
+  batch: BatchGradingContext,
+): GraduateSixScores {
+  const scheme = parseGradingScheme(batch?.gradingScheme);
+  if (!scheme) {
+    return rollupGraduateScores(student, quizDefsFor(batch?.quizDefs));
+  }
+  const scores = parseSchemeScores(student.granularGrades, scheme);
+  return computeSchemeResult(scheme, scores, student.bonusPoints).six;
 }
 
 export type BatchGrades = {

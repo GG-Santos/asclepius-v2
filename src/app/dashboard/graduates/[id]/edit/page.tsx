@@ -6,6 +6,8 @@ import {
   type GraduateDefaults,
   GraduateForm,
 } from "@/components/dashboard/graduate-form";
+import { parseGradingScheme, parseSchemeScores } from "@/lib/assessment-scheme";
+import { getExpiryPolicy } from "@/lib/org-settings";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/session";
 
@@ -23,9 +25,33 @@ export default async function EditGraduatePage({
 
   const g = await prisma.graduate.findUnique({
     where: { id },
-    include: { photo: true },
+    include: { photo: true, batch: { select: { proficiencyRows: true } } },
   });
   if (!g) notFound();
+
+  // Granular grade entry: when the record links back to a student with a
+  // batch grading scheme, raw assessment scores are edited and the six
+  // proficiency columns are recomputed through the scheme on save.
+  const sourceStudent = g.fromStudentEnrollmentNo
+    ? await prisma.student.findUnique({
+        where: { enrollmentNo: g.fromStudentEnrollmentNo },
+        include: { batch: { select: { gradingScheme: true } } },
+      })
+    : await prisma.student.findFirst({
+        where: { graduatedToLcn: g.lcn },
+        include: { batch: { select: { gradingScheme: true } } },
+      });
+  const scheme = sourceStudent
+    ? parseGradingScheme(sourceStudent.batch?.gradingScheme)
+    : null;
+  const granularDefaults =
+    scheme && sourceStudent
+      ? Object.fromEntries(
+          Object.entries(
+            parseSchemeScores(sourceStudent.granularGrades, scheme),
+          ).map(([key, value]) => [key, value == null ? "" : String(value)]),
+        )
+      : {};
 
   const defaults: GraduateDefaults = {
     lcn: g.lcn,
@@ -46,9 +72,11 @@ export default async function EditGraduatePage({
     scorePAS: numToStr(g.scorePAS),
     scoreCCST: numToStr(g.scoreCCST),
     scoreCCSM: numToStr(g.scoreCCSM),
+    bonusPoints: numToStr(g.bonusPoints),
     ranking: numToStr(g.ranking),
     notes: g.notes ?? undefined,
     photoUrl: g.photo?.url ?? null,
+    proficiencyRows: g.batch?.proficiencyRows ?? null,
   };
 
   const action = updateGraduate.bind(null, g.id);
@@ -64,10 +92,14 @@ export default async function EditGraduatePage({
       <GraduateForm
         action={action}
         defaults={defaults}
-        submitLabel="Update Student"
+        submitLabel="Update Record"
         successMessage="Record updated."
         lockLcn
         deleteId={g.id}
+        validityYears={(await getExpiryPolicy()).licenseValidityYears}
+        scheme={scheme}
+        granularDefaults={granularDefaults}
+        bonusNote={sourceStudent?.bonusNote ?? ""}
       />
     </div>
   );

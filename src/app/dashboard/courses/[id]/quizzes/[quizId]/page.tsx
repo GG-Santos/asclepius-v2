@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { deleteQuestion } from "@/app/dashboard/courses/actions";
 import { ConfirmActionDialog } from "@/components/dashboard/confirm-action-dialog";
+import { CopyFromBankDialog } from "@/components/dashboard/copy-from-bank-dialog";
 import {
   QuizQuestionForm,
   Trash2,
@@ -35,7 +36,21 @@ export default async function QuizEditorRoute({
   });
   if (!quiz || quiz.courseId !== id) notFound();
 
+  // Banks feed the draw-link select and the snapshot-copy dialog.
+  const banks = await coursesPrisma.questionBank.findMany({
+    orderBy: { title: "asc" },
+    include: {
+      questions: {
+        orderBy: { position: "asc" },
+        select: { id: true, prompt: true, type: true, points: true },
+      },
+    },
+  });
+
   const totalPoints = quiz.questions.reduce((s, q) => s + q.points, 0);
+  const linkedBank = quiz.bankId
+    ? banks.find((b) => b.id === quiz.bankId)
+    : undefined;
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -67,7 +82,15 @@ export default async function QuizEditorRoute({
         </div>
       )}
 
-      <QuizSettingsForm courseId={id} quiz={quiz} />
+      <QuizSettingsForm
+        courseId={id}
+        quiz={quiz}
+        banks={banks.map((b) => ({
+          id: b.id,
+          title: b.title,
+          questionCount: b.questions.length,
+        }))}
+      />
 
       <section className="space-y-3">
         <div className="flex items-center justify-between">
@@ -76,6 +99,13 @@ export default async function QuizEditorRoute({
             {quiz.questions.length} question
             {quiz.questions.length === 1 ? "" : "s"} · {totalPoints} pt
             {totalPoints === 1 ? "" : "s"}
+            {linkedBank && quiz.bankDrawCount ? (
+              <span className="text-data-mono">
+                {" "}
+                · +{Math.min(quiz.bankDrawCount, linkedBank.questions.length)}{" "}
+                drawn/attempt
+              </span>
+            ) : null}
           </p>
         </div>
 
@@ -132,7 +162,18 @@ export default async function QuizEditorRoute({
           </Card>
         ))}
 
-        <QuizQuestionForm courseId={id} quizId={quiz.id} />
+        <div className="flex items-center gap-2">
+          <QuizQuestionForm courseId={id} quizId={quiz.id} />
+          <CopyFromBankDialog
+            quizId={quiz.id}
+            courseId={id}
+            banks={banks.map((b) => ({
+              id: b.id,
+              title: b.title,
+              questions: b.questions,
+            }))}
+          />
+        </div>
       </section>
     </div>
   );

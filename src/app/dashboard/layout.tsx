@@ -11,7 +11,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/session";
+import { requireStaff } from "@/lib/session";
 import { source } from "@/lib/source";
 
 export default async function DashboardLayout({
@@ -19,8 +19,27 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const session = await requireUser();
+  // Graduates are redirected to /portal inside requireStaff; legacy roles
+  // (e.g. removed "writer") land here with pending=true and see only the
+  // reassignment notice — no nav, no data.
+  const { session, pending } = await requireStaff();
   const { name, email, role, image } = session.user;
+
+  if (pending) {
+    return (
+      <div className="flex min-h-svh flex-col items-center justify-center gap-4 bg-surface px-6 text-center">
+        <h1 className="text-lg font-semibold text-on-surface">
+          Account pending reassignment
+        </h1>
+        <p className="max-w-md text-sm text-on-surface-variant">
+          Your account type ({role}) is no longer in use. An administrator needs
+          to reassign your account before you can continue. Contact the training
+          center.
+        </p>
+        <SignOutButton />
+      </div>
+    );
+  }
 
   const cookieStore = await cookies();
   const sidebarCookie = cookieStore.get("sidebar_state")?.value;

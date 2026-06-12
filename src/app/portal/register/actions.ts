@@ -72,6 +72,9 @@ export async function registerGraduate(
   } catch {
     return { error: "Could not create the account. Try a different email." };
   }
+  // The auth default role is already "graduate", so a crash between signUp
+  // and this update can no longer strand a privileged account — the update
+  // only attaches the LCN and marks the email verified.
   await prisma.user.update({
     where: { email },
     data: { role: "graduate", graduateLcn: lcn, emailVerified: true },

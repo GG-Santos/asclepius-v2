@@ -15,7 +15,7 @@ export type StudentRow = {
   enrollmentNo: string;
   name: string;
   batchCode: string | null;
-  status: "IN_TRAINING" | "GRADUATED" | "WITHDRAWN";
+  status: "IN_TRAINING" | "GRADUATED" | "WITHDRAWN" | "FAILED";
   graduatedToLcn: string | null;
   total: number | null;
   photoUrl: string | null;
@@ -23,11 +23,12 @@ export type StudentRow = {
 
 const STATUS: Record<
   StudentRow["status"],
-  { variant: "primary" | "verified" | "neutral"; label: string }
+  { variant: "primary" | "verified" | "neutral" | "expired"; label: string }
 > = {
   IN_TRAINING: { variant: "primary", label: "In training" },
   GRADUATED: { variant: "verified", label: "Graduated" },
   WITHDRAWN: { variant: "neutral", label: "Withdrawn" },
+  FAILED: { variant: "expired", label: "Failed" },
 };
 
 export function StudentsTable({

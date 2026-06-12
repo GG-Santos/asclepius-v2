@@ -194,6 +194,12 @@ model Quiz {
   shuffle        Boolean @default(false)
   timeLimitMins  Int? // null = untimed
 
+  // Optional question-bank draw: each attempt presents the quiz's own
+  // questions plus bankDrawCount random questions from the linked bank.
+  bankId        String?       @db.ObjectId
+  bank          QuestionBank? @relation(fields: [bankId], references: [id])
+  bankDrawCount Int?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -222,6 +228,42 @@ model Question {
 
   @@index([quizId])
   @@map("course_question")
+}
+
+// Shared question banks: reusable pools that quizzes pull from either by
+// snapshot copy (authoring time) or random draw (attempt time). Banks are
+// global — the point is reuse across courses and CE re-offers.
+model QuestionBank {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  title       String
+  description String?
+  createdBy   String? // main-DB User.id (soft ref)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  questions BankQuestion[]
+  quizzes   Quiz[]
+
+  @@map("course_question_bank")
+}
+
+model BankQuestion {
+  id     String       @id @default(auto()) @map("_id") @db.ObjectId
+  bankId String       @db.ObjectId
+  bank   QuestionBank @relation(fields: [bankId], references: [id], onDelete: Cascade)
+
+  type     QuestionType @default(MULTIPLE_CHOICE)
+  prompt   String // rich HTML
+  points   Float        @default(1)
+  position Int          @default(0)
+  feedback String? // shown after grading
+
+  // Same shape as Question.options / correctAnswers.
+  options        Json?
+  correctAnswers String[] @default([])
+
+  @@index([bankId])
+  @@map("course_bank_question")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -2,8 +2,11 @@
 
 import type * as PageTree from "fumadocs-core/page-tree";
 import {
+  ArrowRight,
+  BookOpen,
   ChevronsUpDown,
   Contact,
+  CornerDownLeft,
   ExternalLink,
   FileText,
   FolderOpen,
@@ -57,6 +60,14 @@ type NavItem = {
 };
 
 type NavGroup = { label?: string; items: NavItem[] };
+
+type DocSearchItem = {
+  href: string;
+  label: string;
+  section: string;
+  keywords: string;
+  icon: "folder" | "page";
+};
 
 const GROUPS: NavGroup[] = [
   {
@@ -153,18 +164,71 @@ function visibleGroups(role: Role): NavGroup[] {
     items: g.items.filter((i) => {
       if (role === "admin") return true;
       if (role === "professor") return i.professor === true;
-      return !i.adminOnly; // writer
+      return false; // graduates/legacy roles never reach the dashboard shell
     }),
   })).filter((g) => g.items.length > 0);
 }
 
-function SidebarSearch({ items }: { items: NavItem[] }) {
+function nodeText(value: unknown, fallback: string) {
+  if (typeof value === "string") return value;
+  if (typeof value === "number") return String(value);
+  return fallback;
+}
+
+function collectDocSearchItems(tree: PageTree.Root): DocSearchItem[] {
+  const items: DocSearchItem[] = [];
+
+  function push(item: DocSearchItem) {
+    if (!items.some((existing) => existing.href === item.href)) {
+      items.push(item);
+    }
+  }
+
+  function visit(nodes: PageTree.Node[], trail: string[]) {
+    for (const node of nodes) {
+      if (node.type === "page") {
+        const label = nodeText(node.name, "Untitled page");
+        const section = trail.join(" / ") || "Documentation";
+        push({
+          href: node.url,
+          label,
+          section,
+          keywords: `${label} ${section}`.toLowerCase(),
+          icon: "page",
+        });
+        continue;
+      }
+
+      if (node.type === "folder") {
+        const folderName = nodeText(node.name, "Section");
+        const folderLabel = nodeText(node.index?.name, folderName);
+        const section = trail.join(" / ") || "Documentation";
+        if (node.index) {
+          push({
+            href: node.index.url,
+            label: folderLabel,
+            section,
+            keywords: `${folderLabel} ${folderName} ${section}`.toLowerCase(),
+            icon: "folder",
+          });
+        }
+        visit(node.children, [...trail, folderLabel]);
+      }
+    }
+  }
+
+  visit(tree.children, []);
+  return items;
+}
+
+function SidebarSearch({ tree }: { tree: PageTree.Root }) {
   const router = useRouter();
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
+  const items = collectDocSearchItems(tree);
   const query = q.trim().toLowerCase();
   const matches = query
-    ? items.filter((i) => i.label.toLowerCase().includes(query)).slice(0, 6)
+    ? items.filter((i) => i.keywords.includes(query)).slice(0, 6)
     : [];
 
   function go(href: string) {
@@ -188,42 +252,61 @@ function SidebarSearch({ items }: { items: NavItem[] }) {
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               if (matches[0]) go(matches[0].href);
-              else if (q.trim())
-                go(`/dashboard/graduates?q=${encodeURIComponent(q.trim())}`);
+              else go("/docs");
             }
             if (e.key === "Escape") setOpen(false);
           }}
-          placeholder="Search…"
-          aria-label="Search the site"
+          placeholder="Search documentation..."
+          aria-label="Search documentation"
           className="w-full rounded-md border border-outline-variant bg-card py-1.5 pr-2 pl-8 text-sm text-on-surface placeholder:text-on-surface-variant/50 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/25 dark:border-white/[0.08] dark:bg-surface-low"
         />
       </div>
       {open && query && (
-        <div className="absolute right-3 left-3 z-50 mt-1 overflow-hidden rounded-md border border-outline-variant/60 bg-card py-1 shadow-[var(--shadow-clinical-md)]">
+        <div className="absolute right-3 left-3 z-50 mt-1 overflow-hidden rounded-md border border-outline-variant/60 bg-card shadow-[var(--shadow-clinical-md)]">
+          <div className="flex items-center justify-between border-outline-variant/60 border-b px-3 py-2">
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant">
+              Documentation results
+            </span>
+            {matches.length > 0 ? (
+              <span className="text-[10px] text-on-surface-variant/70">
+                {matches.length}
+              </span>
+            ) : null}
+          </div>
           {matches.map((m) => {
-            const Icon = m.icon;
+            const Icon = m.icon === "folder" ? BookOpen : FileText;
             return (
               <button
                 key={m.href}
                 type="button"
                 onMouseDown={() => go(m.href)}
-                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-on-surface hover:bg-surface-container"
+                className="group flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-on-surface hover:bg-surface-container"
               >
-                <Icon className="size-4 text-on-surface-variant" />
-                {m.label}
+                <span className="inline-flex size-7 shrink-0 items-center justify-center rounded-md bg-surface-low text-on-surface-variant group-hover:text-accent">
+                  <Icon className="size-4" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block truncate">{m.label}</span>
+                  <span className="block truncate text-[11px] text-on-surface-variant/70">
+                    {m.section}
+                  </span>
+                </span>
+                <ArrowRight className="ml-auto size-3.5 shrink-0 text-on-surface-variant/50 transition-transform group-hover:translate-x-0.5 group-hover:text-accent" />
               </button>
             );
           })}
-          <button
-            type="button"
-            onMouseDown={() =>
-              go(`/dashboard/graduates?q=${encodeURIComponent(q.trim())}`)
-            }
-            className="flex w-full items-center gap-2 border-outline-variant/40 border-t px-3 py-1.5 text-left text-xs text-on-surface-variant hover:bg-surface-container"
-          >
-            <Search className="size-3.5" />
-            Search graduates for “{q.trim()}”
-          </button>
+          {matches.length === 0 ? (
+            <div className="px-3 py-3 text-xs leading-5 text-on-surface-variant">
+              No documentation pages match "{q.trim()}". Try "batch",
+              "graduation", "LMS", or "settings".
+            </div>
+          ) : null}
+          {matches.length > 0 ? (
+            <div className="flex items-center gap-1.5 border-outline-variant/60 border-t px-3 py-2 text-[10px] text-on-surface-variant/70">
+              <CornerDownLeft className="size-3" aria-hidden />
+              Press Enter to open the first result
+            </div>
+          ) : null}
         </div>
       )}
     </div>
@@ -337,7 +420,9 @@ export function AppSidebar({
         </Link>
       </SidebarHeader>
 
-      {open && <SidebarSearch items={groups.flatMap((g) => g.items)} />}
+      {open && role === "admin" && pageTree ? (
+        <SidebarSearch tree={pageTree} />
+      ) : null}
 
       <SidebarContent>
         <nav className="flex flex-1 flex-col py-1">

@@ -1,4 +1,4 @@
-import { BookOpen, Plus } from "lucide-react";
+import { BookOpen, Database, Plus } from "lucide-react";
 import Link from "next/link";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -40,11 +40,18 @@ export default async function CoursesPage() {
           </p>
         }
         actions={
-          <Button asChild>
-            <Link href="/dashboard/courses/new">
-              <Plus aria-hidden /> New course
-            </Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button asChild variant="outline">
+              <Link href="/dashboard/courses/banks">
+                <Database aria-hidden /> Question banks
+              </Link>
+            </Button>
+            <Button asChild>
+              <Link href="/dashboard/courses/new">
+                <Plus aria-hidden /> New course
+              </Link>
+            </Button>
+          </div>
         }
       />
 

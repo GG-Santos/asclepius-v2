@@ -53,7 +53,9 @@ export type StaffRow = {
 const ROLE_LABEL: Record<string, string> = {
   admin: "Admin",
   professor: "Professor",
-  writer: "Writer",
+  // Legacy role — no longer assignable; accounts surface for reassignment.
+  writer: "Writer (legacy — reassign)",
+  graduate: "Graduate",
 };
 
 function CreateStaffForm({ onDone }: { onDone: () => void }) {
@@ -118,10 +120,9 @@ function CreateStaffForm({ onDone }: { onDone: () => void }) {
             <select
               id="role"
               name="role"
-              defaultValue="writer"
+              defaultValue="professor"
               className="h-11 rounded border border-outline-variant bg-card px-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
             >
-              <option value="writer">Writer (blog only)</option>
               <option value="professor">Professor (own batches)</option>
               <option value="admin">Admin (full access)</option>
             </select>
@@ -190,13 +191,20 @@ function EditStaffDialog({ row }: { row: StaffRow }) {
             <select
               id={`role-${row.id}`}
               name="role"
-              defaultValue={row.role}
+              // Legacy writers must land on an assignable role — default the
+              // picker to professor so saving always submits a valid value.
+              defaultValue={row.role === "writer" ? "professor" : row.role}
               disabled={row.isSelf}
               className="h-11 rounded border border-outline-variant bg-card px-3 text-sm disabled:opacity-60 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
             >
-              <option value="writer">Writer</option>
+              {row.role === "writer" && (
+                <option value="writer" disabled>
+                  Writer (legacy — pick a new role)
+                </option>
+              )}
               <option value="professor">Professor</option>
               <option value="admin">Admin</option>
+              <option value="graduate">Graduate (portal)</option>
             </select>
             {row.isSelf && (
               <p className="text-xs text-on-surface-variant">
@@ -314,7 +322,8 @@ export function StaffManager({ rows }: { rows: StaffRow[] }) {
         title="Staff"
         meta={
           <p>
-            Admin, professor, and writer accounts. {rows.length} user
+            Admin and professor accounts (legacy writers shown for
+            reassignment). {rows.length} user
             {rows.length === 1 ? "" : "s"}.
           </p>
         }

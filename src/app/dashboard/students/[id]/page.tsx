@@ -5,7 +5,17 @@ import { notFound } from "next/navigation";
 import { BatchLeaderboard } from "@/components/dashboard/batch-leaderboard";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { gradeFromSix, VERDICT_LABEL } from "@/lib/grading";
+import {
+  computeSchemeResult,
+  isComponentPassing,
+  parseGradingScheme,
+  parseSchemeScores,
+} from "@/lib/assessment-scheme";
+import {
+  gradeStudentForBatch,
+  rollupForBatch,
+  VERDICT_LABEL,
+} from "@/lib/grading";
 import { scoreTotal } from "@/lib/graduate";
 import { prisma } from "@/lib/prisma";
 import {
@@ -14,14 +24,13 @@ import {
   studentActivities,
 } from "@/lib/ranking";
 import { requireAdmin } from "@/lib/session";
-import { rollupGraduateScores } from "@/lib/student";
 import {
   isPracticalPassing,
   isQuizPassing,
   PRACTICAL_DEFS,
   parseGranularGrades,
-  QUIZ_DEFS,
-  QUIZ_TOTAL_MAX,
+  quizDefsFor,
+  quizMaxTotal,
 } from "@/lib/student-grades";
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
@@ -58,6 +67,7 @@ const STATUS_BADGE = {
   IN_TRAINING: { variant: "primary" as const, label: "In Training" },
   GRADUATED: { variant: "verified" as const, label: "Graduated" },
   WITHDRAWN: { variant: "neutral" as const, label: "Withdrawn" },
+  FAILED: { variant: "expired" as const, label: "Failed" },
 };
 
 const VERDICT_STYLE = {
@@ -87,11 +97,24 @@ export default async function StudentDetailPage({
     s.name ||
     s.enrollmentNo;
 
-  const grades = parseGranularGrades(s.granularGrades);
-  const rolled = rollupGraduateScores(s);
+  // Quiz definitions follow the student's batch (legacy q1–q10 when none);
+  // the six/total come from the scheme-aware rollup (Wave 4 renders full
+  // scheme sections — until then the quiz table shows the quiz-def view).
+  const quizDefs = quizDefsFor(s.batch?.quizDefs);
+  const grades = parseGranularGrades(s.granularGrades, quizDefs);
+  const rolled = rollupForBatch(s, s.batch);
   const total = scoreTotal(rolled);
+  // Scheme batches render the grouped assessment table instead (R8).
+  const scheme = parseGradingScheme(s.batch?.gradingScheme);
+  const schemeScores = scheme
+    ? parseSchemeScores(s.granularGrades, scheme)
+    : null;
+  const schemeResult =
+    scheme && schemeScores
+      ? computeSchemeResult(scheme, schemeScores, s.bonusPoints)
+      : null;
   const badge = STATUS_BADGE[s.status];
-  const verdict = gradeFromSix(rolled);
+  const verdict = gradeStudentForBatch(s, s.batch);
 
   // Cohort = the student's batch — used to rank each activity within the batch.
   const cohortSource = s.batchCode
@@ -106,6 +129,7 @@ export default async function StudentDetailPage({
           scorePAS: true,
           scoreCCST: true,
           scoreCCSM: true,
+          bonusPoints: true,
           granularGrades: true,
         },
       })
@@ -124,13 +148,14 @@ export default async function StudentDetailPage({
 
   let quizRawTotal = 0;
   let quizEntered = 0;
-  for (const def of QUIZ_DEFS) {
+  for (const def of quizDefs) {
     const v = grades[def.key];
     if (typeof v === "number") {
       quizRawTotal += v;
       quizEntered += 1;
     }
   }
+  const quizMax = quizMaxTotal(quizDefs);
 
   return (
     <div className="mx-auto max-w-[1100px] space-y-6">
@@ -247,168 +272,324 @@ export default async function StudentDetailPage({
             </CardContent>
           </Card>
 
-          {/* Periodic Examinations (quizzes) */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Periodic Examinations</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <div className="overflow-x-auto rounded-md border border-outline-variant/60">
-                <table className="min-w-full text-left text-xs">
-                  <thead className="bg-surface-container">
-                    <tr>
-                      <th className="px-3 py-2 font-semibold">Quiz</th>
-                      <th className="px-3 py-2 text-center font-semibold">
-                        Max
-                      </th>
-                      <th className="px-3 py-2 text-center font-semibold">
-                        Pass
-                      </th>
-                      <th className="px-3 py-2 text-center font-semibold">
-                        Score
-                      </th>
-                      <th className="px-3 py-2 text-center font-semibold">
-                        Status
-                      </th>
-                      <th className="px-3 py-2 text-center font-semibold">
-                        Batch rank
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {QUIZ_DEFS.map((def) => {
-                      const v = grades[def.key];
-                      const entered = typeof v === "number";
-                      const pass =
-                        entered && isQuizPassing(def.key, v as number);
-                      return (
-                        <tr
-                          key={def.key}
-                          className="odd:bg-card even:bg-surface-low"
-                        >
-                          <td className="px-3 py-2 font-medium">{def.label}</td>
-                          <td className="px-3 py-2 text-center font-mono">
-                            {def.maxScore}
-                          </td>
-                          <td className="px-3 py-2 text-center font-mono">
-                            {def.passing}
-                          </td>
-                          <td className="px-3 py-2 text-center font-mono">
-                            {entered ? v : "—"}
-                          </td>
-                          <td className="px-3 py-2 text-center">
-                            {entered ? (
-                              <PassBadge pass={pass} />
-                            ) : (
-                              <span className="text-on-surface-variant">—</span>
+          {/* Scheme batches: grouped assessment table replaces the legacy
+              quiz + practical sections (R8). */}
+          {scheme && schemeResult && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">
+                  Assessments
+                  <span className="ml-2 text-xs font-normal text-on-surface-variant">
+                    {scheme.mode === "total-points"
+                      ? `total points — passing ${schemeResult.passingTotal}`
+                      : "weighted categories"}
+                  </span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 pt-0">
+                <div className="overflow-x-auto rounded-md border border-outline-variant/60">
+                  <table className="min-w-full text-left text-xs">
+                    <thead className="bg-surface-container">
+                      <tr>
+                        <th className="px-3 py-2 font-semibold">Component</th>
+                        <th className="px-3 py-2 text-center font-semibold">
+                          Max
+                        </th>
+                        <th className="px-3 py-2 text-center font-semibold">
+                          Score
+                        </th>
+                        <th className="px-3 py-2 text-center font-semibold">
+                          Badge
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {scheme.categories.map((category) => {
+                        const comps = scheme.components.filter(
+                          (c) => c.group === category.key,
+                        );
+                        const g = schemeResult.groups[category.key];
+                        return [
+                          <tr
+                            key={`g-${category.key}`}
+                            className="bg-surface-highest font-semibold"
+                          >
+                            <td className="px-3 py-1.5">
+                              {category.label}
+                              <span className="ml-2 font-normal text-on-surface-variant">
+                                {category.weight}%
+                              </span>
+                            </td>
+                            <td className="px-3 py-1.5 text-center font-mono">
+                              {g?.max ?? "—"}
+                            </td>
+                            <td className="px-3 py-1.5 text-center font-mono">
+                              {g?.contribution != null
+                                ? `${g.contribution}%`
+                                : g && g.entered > 0
+                                  ? g.sum
+                                  : "—"}
+                            </td>
+                            <td />
+                          </tr>,
+                          ...comps.map((c) => {
+                            const v = schemeScores?.[c.key];
+                            const entered = typeof v === "number";
+                            const pass = entered
+                              ? isComponentPassing(c, v as number)
+                              : null;
+                            return (
+                              <tr
+                                key={c.key}
+                                className="odd:bg-card even:bg-surface-low"
+                              >
+                                <td className="px-3 py-2 pl-6">
+                                  {c.label}
+                                  {c.date && (
+                                    <span className="ml-2 text-[10px] text-on-surface-variant">
+                                      {c.date}
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="px-3 py-2 text-center font-mono">
+                                  {c.maxScore}
+                                </td>
+                                <td className="px-3 py-2 text-center font-mono">
+                                  {entered ? v : "—"}
+                                </td>
+                                <td className="px-3 py-2 text-center">
+                                  {pass === null ? (
+                                    <span className="text-on-surface-variant">
+                                      —
+                                    </span>
+                                  ) : (
+                                    <PassBadge pass={pass} />
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          }),
+                        ];
+                      })}
+                    </tbody>
+                    <tfoot className="border-outline-variant/60 border-t bg-surface-highest font-semibold">
+                      <tr>
+                        <td className="px-3 py-2">
+                          Total{" "}
+                          {typeof s.bonusPoints === "number" &&
+                            s.bonusPoints !== 0 && (
+                              <span className="font-normal text-on-surface-variant">
+                                (incl.{" "}
+                                {schemeResult.bonusApplied > 0
+                                  ? `+${schemeResult.bonusApplied}`
+                                  : schemeResult.bonusApplied}{" "}
+                                bonus
+                                {s.bonusNote ? ` — ${s.bonusNote}` : ""})
+                              </span>
                             )}
-                          </td>
-                          <td className="px-3 py-2 text-center">
-                            {rankCell(myRanks.get(def.key))}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                  <tfoot className="border-outline-variant/60 border-t bg-surface-highest font-semibold">
-                    <tr>
-                      <td className="px-3 py-2">Quiz Total → SJE</td>
-                      <td className="px-3 py-2 text-center font-mono">
-                        {QUIZ_TOTAL_MAX}
-                      </td>
-                      <td className="px-3 py-2 text-center font-mono">400</td>
-                      <td className="px-3 py-2 text-center font-mono">
-                        {quizEntered > 0 ? quizRawTotal : "—"}
-                      </td>
-                      <td
-                        colSpan={2}
-                        className="px-3 py-2 text-center text-on-surface-variant"
-                      >
-                        {quizEntered > 0
-                          ? `${Math.round((quizRawTotal / QUIZ_TOTAL_MAX) * 10000) / 100}% SJE`
-                          : "—"}
-                      </td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
+                        </td>
+                        <td className="px-3 py-2 text-center font-mono">
+                          {schemeResult.totalMax}
+                        </td>
+                        <td className="px-3 py-2 text-center font-mono">
+                          {schemeResult.total ?? "—"}
+                        </td>
+                        <td className="px-3 py-2 text-center text-xs uppercase">
+                          {schemeResult.verdict}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
-          {/* Final & Practical Examinations */}
-          <Card>
-            <CardHeader className="flex-row items-center justify-between">
-              <CardTitle className="text-base">
-                Final &amp; Practical Examinations
-              </CardTitle>
-              {total !== null && (
-                <span className="text-sm font-semibold text-on-surface">
-                  {total}% weighted total
-                </span>
-              )}
-            </CardHeader>
-            <CardContent className="pt-0">
-              <div className="overflow-x-auto rounded-md border border-outline-variant/60">
-                <table className="min-w-full text-left text-xs">
-                  <thead className="bg-surface-container">
-                    <tr>
-                      <th className="px-3 py-2 font-semibold">Examination</th>
-                      <th className="px-3 py-2 text-center font-semibold">
-                        Max
-                      </th>
-                      <th className="px-3 py-2 text-center font-semibold">
-                        Pass
-                      </th>
-                      <th className="px-3 py-2 text-center font-semibold">
-                        Raw
-                      </th>
-                      <th className="px-3 py-2 text-center font-semibold">
-                        Status
-                      </th>
-                      <th className="px-3 py-2 text-center font-semibold">
-                        Batch rank
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {PRACTICAL_DEFS.map((def) => {
-                      const v = s[def.key as keyof typeof s] as number | null;
-                      const entered = typeof v === "number";
-                      const pass =
-                        entered && isPracticalPassing(def.key, v as number);
-                      return (
-                        <tr
-                          key={def.key}
-                          className="odd:bg-card even:bg-surface-low"
-                        >
-                          <td className="px-3 py-2">{def.label}</td>
+          {!scheme && (
+            <>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">
+                    Periodic Examinations
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="overflow-x-auto rounded-md border border-outline-variant/60">
+                    <table className="min-w-full text-left text-xs">
+                      <thead className="bg-surface-container">
+                        <tr>
+                          <th className="px-3 py-2 font-semibold">Quiz</th>
+                          <th className="px-3 py-2 text-center font-semibold">
+                            Max
+                          </th>
+                          <th className="px-3 py-2 text-center font-semibold">
+                            Pass
+                          </th>
+                          <th className="px-3 py-2 text-center font-semibold">
+                            Score
+                          </th>
+                          <th className="px-3 py-2 text-center font-semibold">
+                            Status
+                          </th>
+                          <th className="px-3 py-2 text-center font-semibold">
+                            Batch rank
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {quizDefs.map((def) => {
+                          const v = grades[def.key];
+                          const entered = typeof v === "number";
+                          const pass =
+                            entered &&
+                            isQuizPassing(def.key, v as number, quizDefs);
+                          return (
+                            <tr
+                              key={def.key}
+                              className="odd:bg-card even:bg-surface-low"
+                            >
+                              <td className="px-3 py-2 font-medium">
+                                {def.label}
+                                {def.date && (
+                                  <span className="block text-[10px] font-normal text-on-surface-variant">
+                                    {def.date}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="px-3 py-2 text-center font-mono">
+                                {def.maxScore}
+                              </td>
+                              <td className="px-3 py-2 text-center font-mono">
+                                {def.passing}
+                              </td>
+                              <td className="px-3 py-2 text-center font-mono">
+                                {entered ? v : "—"}
+                              </td>
+                              <td className="px-3 py-2 text-center">
+                                {entered ? (
+                                  <PassBadge pass={pass} />
+                                ) : (
+                                  <span className="text-on-surface-variant">
+                                    —
+                                  </span>
+                                )}
+                              </td>
+                              <td className="px-3 py-2 text-center">
+                                {rankCell(myRanks.get(def.key))}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                      <tfoot className="border-outline-variant/60 border-t bg-surface-highest font-semibold">
+                        <tr>
+                          <td className="px-3 py-2">Quiz Total → SJE</td>
                           <td className="px-3 py-2 text-center font-mono">
-                            {def.maxScore}
+                            {quizMax}
                           </td>
                           <td className="px-3 py-2 text-center font-mono">
-                            {def.passing}
+                            {Math.round(quizMax / 2)}
                           </td>
                           <td className="px-3 py-2 text-center font-mono">
-                            {entered ? v : "—"}
+                            {quizEntered > 0 ? quizRawTotal : "—"}
                           </td>
-                          <td className="px-3 py-2 text-center">
-                            {entered ? (
-                              <PassBadge pass={pass} />
-                            ) : (
-                              <span className="text-on-surface-variant">—</span>
-                            )}
-                          </td>
-                          <td className="px-3 py-2 text-center">
-                            {rankCell(myRanks.get(def.key))}
+                          <td
+                            colSpan={2}
+                            className="px-3 py-2 text-center text-on-surface-variant"
+                          >
+                            {quizEntered > 0
+                              ? `${Math.round((quizRawTotal / quizMax) * 10000) / 100}% SJE`
+                              : "—"}
                           </td>
                         </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
+                      </tfoot>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Final & Practical Examinations */}
+              <Card>
+                <CardHeader className="flex-row items-center justify-between">
+                  <CardTitle className="text-base">
+                    Final &amp; Practical Examinations
+                  </CardTitle>
+                  {total !== null && (
+                    <span className="text-sm font-semibold text-on-surface">
+                      {total}% weighted total
+                    </span>
+                  )}
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="overflow-x-auto rounded-md border border-outline-variant/60">
+                    <table className="min-w-full text-left text-xs">
+                      <thead className="bg-surface-container">
+                        <tr>
+                          <th className="px-3 py-2 font-semibold">
+                            Examination
+                          </th>
+                          <th className="px-3 py-2 text-center font-semibold">
+                            Max
+                          </th>
+                          <th className="px-3 py-2 text-center font-semibold">
+                            Pass
+                          </th>
+                          <th className="px-3 py-2 text-center font-semibold">
+                            Raw
+                          </th>
+                          <th className="px-3 py-2 text-center font-semibold">
+                            Status
+                          </th>
+                          <th className="px-3 py-2 text-center font-semibold">
+                            Batch rank
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {PRACTICAL_DEFS.map((def) => {
+                          const v = s[def.key as keyof typeof s] as
+                            | number
+                            | null;
+                          const entered = typeof v === "number";
+                          const pass =
+                            entered && isPracticalPassing(def.key, v as number);
+                          return (
+                            <tr
+                              key={def.key}
+                              className="odd:bg-card even:bg-surface-low"
+                            >
+                              <td className="px-3 py-2">{def.label}</td>
+                              <td className="px-3 py-2 text-center font-mono">
+                                {def.maxScore}
+                              </td>
+                              <td className="px-3 py-2 text-center font-mono">
+                                {def.passing}
+                              </td>
+                              <td className="px-3 py-2 text-center font-mono">
+                                {entered ? v : "—"}
+                              </td>
+                              <td className="px-3 py-2 text-center">
+                                {entered ? (
+                                  <PassBadge pass={pass} />
+                                ) : (
+                                  <span className="text-on-surface-variant">
+                                    —
+                                  </span>
+                                )}
+                              </td>
+                              <td className="px-3 py-2 text-center">
+                                {rankCell(myRanks.get(def.key))}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            </>
+          )}
 
           {/* Per-activity leaderboard */}
           <Card>

@@ -7,6 +7,15 @@
 // Signature ink is admin-only; the digital-use warning is public-only — the
 // design alternates them over the same signatory block.
 
+import { TemplateTextLayer } from "@/components/verify/template-text";
+import {
+  DEFAULT_TEMPLATE,
+  layerSrc,
+  overlayColor,
+  type ResolvedTemplate,
+  suppressedOverride,
+} from "@/lib/artifact-template/resolve";
+
 const LAYER = "absolute inset-0 h-full w-full";
 const ART = "/assets/svg/LicenseV2/front";
 
@@ -27,7 +36,7 @@ const LAYERS: LayerEntry[] = [
   { kind: "static", file: "02-top-bar.svg" },
   { kind: "static", file: "03-title.svg" },
   { kind: "static", file: "04-subtitle.svg" },
-  { kind: "static", file: "05-bar.svg" },
+  // 05-bar.svg removed 2026-06 at the owner's request (design change).
   { kind: "static", file: "06-address.svg" },
   { kind: "static", file: "07-main-logo.svg" },
   { kind: "static", file: "08-secondary-logo.svg" },
@@ -69,11 +78,11 @@ function svgProps() {
   };
 }
 
-function DateIssue({ text }: { text: string }) {
+function DateIssue({ text, fill }: { text: string; fill: string }) {
   return (
     <svg {...svgProps()} aria-hidden="true">
       <text
-        fill="#000"
+        fill={fill}
         fontFamily="Calibri, Arial, sans-serif"
         fontSize="68"
         letterSpacing="-0.012em"
@@ -86,11 +95,11 @@ function DateIssue({ text }: { text: string }) {
   );
 }
 
-function DateExpiry({ text }: { text: string }) {
+function DateExpiry({ text, fill }: { text: string; fill: string }) {
   return (
     <svg {...svgProps()} aria-hidden="true">
       <text
-        fill="#000"
+        fill={fill}
         fontFamily="Calibri, Arial, sans-serif"
         fontSize="68"
         letterSpacing="-0.012em"
@@ -103,12 +112,12 @@ function DateExpiry({ text }: { text: string }) {
   );
 }
 
-function LcnNumber({ text }: { text: string }) {
+function LcnNumber({ text, fill }: { text: string; fill: string }) {
   const fontSize = text.length > 10 ? 85 : text.length > 7 ? 125 : 139;
   return (
     <svg {...svgProps()} aria-hidden="true">
       <text
-        fill="#000"
+        fill={fill}
         fontFamily="Arial, sans-serif"
         fontSize={fontSize}
         fontWeight="bold"
@@ -122,7 +131,7 @@ function LcnNumber({ text }: { text: string }) {
   );
 }
 
-function EmtName({ text }: { text: string }) {
+function EmtName({ text, fill }: { text: string; fill: string }) {
   const upper = text.toUpperCase();
   // Keep long names inside the name bar (~2300 usable px at this anchor).
   const fontSize =
@@ -136,7 +145,7 @@ function EmtName({ text }: { text: string }) {
   return (
     <svg {...svgProps()} aria-hidden="true">
       <text
-        fill="#000"
+        fill={fill}
         fontFamily="Arial, sans-serif"
         fontSize={fontSize}
         fontWeight="bold"
@@ -176,6 +185,7 @@ export function LicenseCard({
   signature = false,
   warningOverlay = false,
   frameless = false,
+  template = DEFAULT_TEMPLATE,
 }: {
   name: string;
   lcn: string;
@@ -189,6 +199,8 @@ export function LicenseCard({
   warningOverlay?: boolean;
   /** Print mode: no screen chrome (radius/border/shadow) — used for PNG export. */
   frameless?: boolean;
+  /** Org artifact template; omitted = built-in artwork (zero-config parity). */
+  template?: ResolvedTemplate;
 }) {
   return (
     <div
@@ -202,16 +214,25 @@ export function LicenseCard({
         {LAYERS.map((layer, i) => {
           const key = `layer-${i}`;
           switch (layer.kind) {
-            case "static":
+            case "static": {
+              const override = suppressedOverride(
+                template,
+                "license-front",
+                layer.file,
+              );
+              if (override) {
+                return <TemplateTextLayer key={key} override={override} />;
+              }
               return (
                 // biome-ignore lint/performance/noImgElement: fixed local SVG artwork layers, not content images
                 <img
                   key={key}
-                  src={`${ART}/${layer.file}`}
+                  src={layerSrc(template, "license-front", layer.file)}
                   alt=""
                   className={LAYER}
                 />
               );
+            }
             case "signature":
               if (!signature) return null;
               return (
@@ -239,14 +260,36 @@ export function LicenseCard({
                 <EmtPhoto key={key} photoUrl={photoUrl} />
               ) : null;
             case "name":
-              return <EmtName key={key} text={name} />;
+              return (
+                <EmtName
+                  key={key}
+                  text={name}
+                  fill={overlayColor(template, "license-name")}
+                />
+              );
             case "lcn":
-              return <LcnNumber key={key} text={lcn} />;
+              return (
+                <LcnNumber
+                  key={key}
+                  text={lcn}
+                  fill={overlayColor(template, "license-lcn")}
+                />
+              );
             case "date-issued":
-              return issued ? <DateIssue key={key} text={issued} /> : null;
+              return issued ? (
+                <DateIssue
+                  key={key}
+                  text={issued}
+                  fill={overlayColor(template, "license-dates")}
+                />
+              ) : null;
             case "date-validity":
               return expiration ? (
-                <DateExpiry key={key} text={expiration} />
+                <DateExpiry
+                  key={key}
+                  text={expiration}
+                  fill={overlayColor(template, "license-dates")}
+                />
               ) : null;
             default:
               return null;

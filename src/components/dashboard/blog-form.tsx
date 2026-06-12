@@ -29,6 +29,8 @@ export function BlogForm({
   defaults = {},
   submitLabel,
   tagSuggestions = [],
+  redirectTo = "/dashboard/blog",
+  lockStatus = false,
 }: {
   action: (
     prev: BlogActionState,
@@ -37,6 +39,9 @@ export function BlogForm({
   defaults?: BlogDefaults;
   submitLabel: string;
   tagSuggestions?: string[];
+  redirectTo?: string;
+  /** Portal authoring: posts always save as drafts — hide the status picker. */
+  lockStatus?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(action, {});
   const router = useRouter();
@@ -52,11 +57,11 @@ export function BlogForm({
     if (state.ok && !handled.current) {
       handled.current = true;
       toast.success("Post saved.");
-      router.push("/dashboard/blog");
+      router.push(redirectTo);
       router.refresh();
     }
     if (state.error) toast.error(state.error);
-  }, [state, router]);
+  }, [state, router, redirectTo]);
 
   return (
     <form action={formAction} className="space-y-5">
@@ -109,18 +114,27 @@ export function BlogForm({
                 )}
               </p>
             </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="status">Status</Label>
-              <select
-                id="status"
-                name="status"
-                defaultValue={defaults.status ?? "DRAFT"}
-                className="h-11 rounded border border-outline-variant bg-card px-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
-              >
-                <option value="DRAFT">Draft</option>
-                <option value="PUBLISHED">Published</option>
-              </select>
-            </div>
+            {lockStatus ? (
+              <div className="flex flex-col gap-1.5">
+                <Label>Status</Label>
+                <p className="flex h-11 items-center rounded border border-outline-variant/60 bg-surface-low px-3 text-sm text-on-surface-variant">
+                  Saves as a draft — an admin reviews and publishes.
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="status">Status</Label>
+                <select
+                  id="status"
+                  name="status"
+                  defaultValue={defaults.status ?? "DRAFT"}
+                  className="h-11 rounded border border-outline-variant bg-card px-3 text-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+                >
+                  <option value="DRAFT">Draft</option>
+                  <option value="PUBLISHED">Published</option>
+                </select>
+              </div>
+            )}
           </div>
 
           <div className="flex flex-col gap-1.5">

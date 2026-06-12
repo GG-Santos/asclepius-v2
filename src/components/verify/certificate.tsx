@@ -3,6 +3,20 @@
 // placeholder slots: photo, name, award date, license number, and an
 // embedded verification QR (the design's QR-logo layer sits on top of it).
 // Signature layers are admin-only — never rendered on the public surface.
+//
+// Template-aware: static layers resolve through the org template (replaced
+// layers serve the sanitized upload; text-overridden layers are suppressed
+// and re-rendered as live SVG text). Zero-config = the untouched artwork.
+
+import { TemplateTextLayer } from "@/components/verify/template-text";
+import {
+  DEFAULT_TEMPLATE,
+  layerSrc,
+  overlayColor,
+  type ResolvedTemplate,
+  suppressedOverride,
+  textOverrideFor,
+} from "@/lib/artifact-template/resolve";
 
 const ONES = [
   "",
@@ -145,11 +159,11 @@ function Overlay({ children }: { children: React.ReactNode }) {
   );
 }
 
-function CertName({ name }: { name: string }) {
+function CertName({ name, fill }: { name: string; fill: string }) {
   return (
     <Overlay>
       <text
-        fill="#1a1a1a"
+        fill={fill}
         fontFamily="'Copperplate Gothic Bold', Georgia, serif"
         fontSize="269"
         fontWeight="bold"
@@ -163,7 +177,15 @@ function CertName({ name }: { name: string }) {
   );
 }
 
-function CertBody({ issued }: { issued: string | null }) {
+function CertBody({
+  issued,
+  fill,
+  template,
+}: {
+  issued: string | null;
+  fill: string;
+  template: ResolvedTemplate;
+}) {
   let formatted = issued ?? "";
   let year = 0;
   if (issued) {
@@ -175,10 +197,18 @@ function CertBody({ issued }: { issued: string | null }) {
     }
   }
   const words = yearInWords(year);
+  // Venue lines are a configurable text element; the default renders the
+  // baked wording verbatim at the original baselines.
+  const venue = textOverrideFor(template, "cert-body-location");
+  const venueLines = venue?.lines ?? [
+    "Given at the WSL EMS Safety & Rescue Training Center,",
+    "2A Wellgoco Bldg., Instruccion Street, España Avenue, Sampaloc Manila",
+  ];
+  const venueFill = venue?.color ?? fill;
   return (
     <Overlay>
       <text
-        fill="#1a1a1a"
+        fill={fill}
         fontFamily="'Lucida Calligraphy', 'Brush Script MT', cursive"
         fontSize="68"
         fontWeight="bold"
@@ -189,22 +219,30 @@ function CertBody({ issued }: { issued: string | null }) {
           Awarded this {formatted}{" "}
           {year ? `in the year of our Lord ${words}` : ""}.
         </tspan>
-        <tspan x="3450" y="3628.17">
-          Given at the WSL EMS Safety &amp; Rescue Training Center,
-        </tspan>
-        <tspan x="3450" y="3708.17">
-          2A Wellgoco Bldg., Instruccion Street, España Avenue, Sampaloc Manila
-        </tspan>
+      </text>
+      <text
+        fill={venueFill}
+        fontFamily="'Lucida Calligraphy', 'Brush Script MT', cursive"
+        fontSize="68"
+        fontWeight="bold"
+        fontStyle="italic"
+        textAnchor="middle"
+      >
+        {venueLines.slice(0, 2).map((line, i) => (
+          <tspan key={`venue-${i}-${line}`} x="3450" y={3628.17 + i * 80}>
+            {line}
+          </tspan>
+        ))}
       </text>
     </Overlay>
   );
 }
 
-function CertNumber({ lcn }: { lcn: string }) {
+function CertNumber({ lcn, fill }: { lcn: string; fill: string }) {
   return (
     <Overlay>
       <text
-        fill="#1a1a1a"
+        fill={fill}
         fontFamily="Arial, sans-serif"
         fontSize="200"
         fontWeight="bold"
@@ -254,6 +292,7 @@ export function Certificate({
   signatures,
   warningOverlay = false,
   frameless = false,
+  template = DEFAULT_TEMPLATE,
 }: {
   name: string;
   lcn: string;
@@ -270,6 +309,8 @@ export function Certificate({
   warningOverlay?: boolean;
   /** Print mode: no screen chrome (radius/border/shadow) — used for PNG export. */
   frameless?: boolean;
+  /** Org artifact template; omitted = built-in artwork (zero-config parity). */
+  template?: ResolvedTemplate;
 }) {
   return (
     <div
@@ -283,16 +324,25 @@ export function Certificate({
         {LAYERS.map((layer, i) => {
           const key = `layer-${i}`;
           switch (layer.kind) {
-            case "static":
+            case "static": {
+              const override = suppressedOverride(
+                template,
+                "certificate",
+                layer.file,
+              );
+              if (override) {
+                return <TemplateTextLayer key={key} override={override} />;
+              }
               return (
                 // biome-ignore lint/performance/noImgElement: fixed local SVG artwork layers, not content images
                 <img
                   key={key}
-                  src={`${ART}/${layer.file}`}
+                  src={layerSrc(template, "certificate", layer.file)}
                   alt=""
                   className={LAYER}
                 />
               );
+            }
             case "warning":
               if (!warningOverlay) return null;
               return (
@@ -336,11 +386,30 @@ export function Certificate({
                 />
               ) : null;
             case "name":
-              return <CertName key={key} name={name} />;
+              return (
+                <CertName
+                  key={key}
+                  name={name}
+                  fill={overlayColor(template, "cert-name")}
+                />
+              );
             case "date":
-              return <CertBody key={key} issued={issued} />;
+              return (
+                <CertBody
+                  key={key}
+                  issued={issued}
+                  fill={overlayColor(template, "cert-body")}
+                  template={template}
+                />
+              );
             case "lcn":
-              return <CertNumber key={key} lcn={lcn} />;
+              return (
+                <CertNumber
+                  key={key}
+                  lcn={lcn}
+                  fill={overlayColor(template, "cert-lcn")}
+                />
+              );
             case "qr":
               return qrDataUrl ? (
                 <Overlay key={key}>

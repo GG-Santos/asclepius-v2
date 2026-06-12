@@ -1,6 +1,16 @@
 import type { Prisma } from "@prisma/client";
 import { batchNumber } from "@/lib/graduate";
-import { parseGranularGrades, quizToSjePct } from "@/lib/student-grades";
+import {
+  parseGranularGrades,
+  QUIZ_DEFS,
+  type QuizDef,
+  quizToSjePct,
+} from "@/lib/student-grades";
+
+/** Statuses a student may be promoted from (R13: FAILED never promotes). */
+export function isPromotable(status: string): boolean {
+  return status === "IN_TRAINING";
+}
 
 /** Raw practical exam scores stored on the Student model. */
 export type StudentRawScores = {
@@ -42,9 +52,10 @@ function round2(n: number): number {
  */
 export function rollupGraduateScores(
   student: StudentRawScores,
+  quizDefs: readonly QuizDef[] = QUIZ_DEFS,
 ): GraduateSixScores {
-  const grades = parseGranularGrades(student.granularGrades);
-  const sjePct = quizToSjePct(grades);
+  const grades = parseGranularGrades(student.granularGrades, quizDefs);
+  const sjePct = quizToSjePct(grades, quizDefs);
   return {
     scoreFWE:
       student.scoreFWE !== null ? round2((student.scoreFWE / 1000) * 10) : null,

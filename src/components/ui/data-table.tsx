@@ -10,6 +10,7 @@ import {
   getFilteredRowModel,
   getPaginationRowModel,
   getSortedRowModel,
+  type RowSelectionState,
   type SortingState,
   useReactTable,
   type VisibilityState,
@@ -196,6 +197,12 @@ export const includesValue: FilterFn<unknown> = (row, columnId, value) => {
 type DataTableProps<TData> = {
   columns: ColumnDef<TData, unknown>[];
   data: TData[];
+  getRowId?: (row: TData, index: number) => string;
+  enableRowSelection?: boolean;
+  selectionToolbar?: (
+    selectedRows: TData[],
+    clearSelection: () => void,
+  ) => ReactNode;
   noun?: string;
   /** Plural form for the footer/empty copy (defaults to `${noun}s`). */
   nounPlural?: string;
@@ -221,6 +228,9 @@ type DataTableProps<TData> = {
 export function DataTable<TData>({
   columns,
   data,
+  getRowId,
+  enableRowSelection = false,
+  selectionToolbar,
   noun = "record",
   nounPlural,
   searchPlaceholder = "Search…",
@@ -239,6 +249,7 @@ export function DataTable<TData>({
     useState<VisibilityState>(initialVisibility);
   const [globalFilter, setGlobalFilter] = useState("");
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 });
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
   const visibilityStorageKey = storageKey ? `dt:${storageKey}:columns` : null;
 
@@ -282,12 +293,16 @@ export function DataTable<TData>({
       columnVisibility,
       globalFilter,
       pagination,
+      rowSelection,
     },
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: onVisibilityChange,
     onGlobalFilterChange: setGlobalFilter,
     onPaginationChange: setPagination,
+    onRowSelectionChange: setRowSelection,
+    enableRowSelection,
+    getRowId,
     globalFilterFn,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
@@ -299,6 +314,10 @@ export function DataTable<TData>({
   const pageCount = table.getPageCount();
   const pageIndex = table.getState().pagination.pageIndex;
   const plural = nounPlural ?? `${noun}s`;
+  const selectedRows = enableRowSelection
+    ? table.getSelectedRowModel().flatRows.map((row) => row.original)
+    : [];
+  const clearSelection = () => setRowSelection({});
 
   return (
     <div className="space-y-4">
@@ -315,9 +334,17 @@ export function DataTable<TData>({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {toolbar}
+          {enableRowSelection && selectedRows.length > 0 && (
+            <div className="flex min-h-11 flex-wrap items-center gap-1.5 rounded-md border border-accent/25 bg-accent/10 px-2 py-0.5">
+              <span className="whitespace-nowrap px-1 text-xs font-semibold text-accent">
+                {selectedRows.length} selected
+              </span>
+              {selectionToolbar?.(selectedRows, clearSelection)}
+            </div>
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-2">
+              <Button variant="outline" size="sm" className="h-11 gap-2">
                 <Columns3 className="size-4" />
                 <span className="hidden lg:inline">Columns</span>
               </Button>
@@ -391,7 +418,12 @@ export function DataTable<TData>({
               table.getRowModel().rows.map((row) => (
                 <tr
                   key={row.id}
-                  className="border-outline-variant/40 border-t odd:bg-card even:bg-surface-low hover:bg-surface-container/60 transition-colors"
+                  className={cn(
+                    "border-outline-variant/40 border-t transition-colors",
+                    row.getIsSelected()
+                      ? "bg-accent/10 hover:bg-accent/15"
+                      : "odd:bg-card even:bg-surface-low hover:bg-surface-container/60",
+                  )}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <td key={cell.id} className="px-3 py-2 align-middle">

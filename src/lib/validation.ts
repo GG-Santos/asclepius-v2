@@ -24,6 +24,9 @@ export const graduateInputSchema = z.object({
   scorePAS: optNum,
   scoreCCST: optNum,
   scoreCCSM: optNum,
+  // Signed bonus/reconciliation in Total Evaluation points — its own line in
+  // the proficiency breakdown. Total = six + bonus.
+  bonusPoints: optNum,
   ranking: z.preprocess(
     emptyToUndef,
     z.coerce.number().int().min(0).max(3).optional(),

@@ -1,0 +1,91 @@
+---
+title: Edit a Batch
+description: Update cohort metadata, professor assignment, media, grading setup, and public descriptions.
+---
+
+Last reviewed: 2026-06-12.
+
+Edit a batch when cohort metadata or grading setup is wrong. Do this before
+graduation whenever possible, because batch settings affect how students are
+graded and how credentials are displayed.
+
+<OpenRoute href="/dashboard/batches">Open Batches</OpenRoute>
+
+<WorkflowMedia title="Edit a Batch" slug="edit-batch" />
+
+## What the Edit Page Owns
+
+| Section | Use |
+| --- | --- |
+| Basic details | Batch number, label, professor account, display professor name, and public description. |
+| Media | Logo, public hero image, and gallery images. |
+| Grading scheme | Batch-specific assessment model and passing rules. |
+| Quiz definitions | Legacy quiz rows used by student score entry when no full scheme is configured. |
+| Proficiency rows | Labels and weights shown on graduate records and generated artifacts. |
+
+## Steps
+
+<Steps>
+
+<Step>
+
+### Open the edit page
+
+From Batches, use the pencil action on the target row. You can also open the
+batch detail page and choose **Edit batch**.
+
+</Step>
+
+<Step>
+
+### Change one concern
+
+Update the smallest set of fields that matches the source correction. Avoid
+changing labels, media, and grading rules in the same pass unless one ticket
+requires all of them.
+
+</Step>
+
+<Step>
+
+### Save the batch
+
+Choose **Save changes** in the batch editor. Return to the batch detail page to
+inspect the saved result.
+
+</Step>
+
+<Step>
+
+### Verify downstream surfaces
+
+If the edit affects public display, open the public cohort or a graduate
+credential. If it affects grading, open an affected student record and confirm
+the score rows still match the official grade book.
+
+</Step>
+
+</Steps>
+
+## Verification
+
+| Change | Verify |
+| --- | --- |
+| Professor or label | Batches table and batch detail header. |
+| Public description or media | Public cohort page at `/cohorts/[id]`. |
+| Grading scheme or quiz definitions | Student edit form and graduation preview. |
+| Proficiency rows | Graduate detail page, certificate preview, and ID card preview. |
+
+## Troubleshooting
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| Scores look different after editing | Grading scheme or quiz definitions changed. | Compare the batch scheme to the official grade book before graduation. |
+| Public cohort still shows old media | Browser cache or unsaved media field. | Refresh the public cohort page, then reopen the batch editor. |
+| Professor cannot edit assigned work | Professor account was not assigned or the batch already graduated. | Confirm the professor account and batch state. |
+| Proficiency labels do not match artifacts | Proficiency rows were not saved or the graduate uses another batch. | Reopen the batch edit page and inspect the graduate's batch assignment. |
+
+<DocNote title="Graduated batches are public history" tone="warn">
+After graduation, batch edits can change how existing credentials are understood.
+Only edit graduated batch metadata when the correction is source-backed.
+</DocNote>
