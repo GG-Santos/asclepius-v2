@@ -35,15 +35,15 @@ const batchSchema = z.object({
     .min(1, "Code is required")
     .transform((c) => c.toUpperCase()),
   batchNumber: z.preprocess(
-    (v) => (v === "" ? undefined : v),
+    (v) => (v === "" || v == null ? undefined : v),
     z.string().trim().optional(),
   ),
   label: z.preprocess(
-    (v) => (v === "" ? undefined : v),
+    (v) => (v === "" || v == null ? undefined : v),
     z.string().trim().optional(),
   ),
   professor: z.preprocess(
-    (v) => (v === "" ? undefined : v),
+    (v) => (v === "" || v == null ? undefined : v),
     z.string().trim().optional(),
   ),
   description: z.preprocess(
@@ -396,7 +396,11 @@ export async function markBatchGraduated(
           streetAddress: s.streetAddress,
           city: s.city,
           province: s.province,
+          town: s.town,
           country: s.country,
+          postalCode: s.postalCode,
+          latitude: s.latitude,
+          longitude: s.longitude,
           mapsUrl: s.mapsUrl,
           ...scores,
           issuedAt: graduatedAt,

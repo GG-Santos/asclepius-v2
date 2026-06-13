@@ -41,7 +41,11 @@ export type GraduateDefaults = {
   streetAddress?: string;
   city?: string;
   province?: string;
+  town?: string;
   country?: string;
+  postalCode?: string;
+  latitude?: string;
+  longitude?: string;
   mapsUrl?: string;
   batchCode?: string;
   status?: string;

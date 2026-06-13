@@ -1,10 +1,17 @@
 "use client";
 
-import { ExternalLink, MapPin } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { PhoneInput } from "@/components/ui/phone-input";
 import { Select } from "@/components/ui/select";
+import {
+  findLocationCoordinates,
+  getCityOptions,
+  getCountryOptions,
+  getRegionOptions,
+  getTownOptions,
+  postalCodeFor,
+} from "@/lib/location-options";
 
 export type PrivateContactDefaults = {
   phone?: string;
@@ -12,21 +19,13 @@ export type PrivateContactDefaults = {
   streetAddress?: string;
   city?: string;
   province?: string;
+  town?: string;
   country?: string;
+  postalCode?: string;
+  latitude?: string;
+  longitude?: string;
   mapsUrl?: string;
 };
-
-const LOCATION_COUNTRIES = [
-  "Philippines",
-  "United States",
-  "Canada",
-  "United Kingdom",
-  "Australia",
-  "Singapore",
-  "Japan",
-  "South Korea",
-  "United Arab Emirates",
-] as const;
 
 function normalizePhoneValue(phone?: string) {
   const raw = phone?.trim() ?? "";
@@ -51,28 +50,6 @@ function normalizeSex(value?: string) {
   return "";
 }
 
-function googleMapsUrl({
-  streetAddress,
-  city,
-  province,
-  country,
-}: {
-  streetAddress: string;
-  city: string;
-  province: string;
-  country: string;
-}) {
-  const query = [streetAddress, city, province, country]
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .join(", ");
-  return query
-    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-        query,
-      )}`
-    : "";
-}
-
 export function PrivateContactFields({
   defaults = {},
 }: {
@@ -84,22 +61,48 @@ export function PrivateContactFields({
   );
   const [city, setCity] = useState(defaults.city ?? "");
   const [province, setProvince] = useState(defaults.province ?? "");
-  const [country, setCountry] = useState(defaults.country ?? "Philippines");
-  const [mapsUrl, setMapsUrl] = useState(defaults.mapsUrl ?? "");
+  const [town, setTown] = useState(defaults.town ?? "");
+  const [country, setCountry] = useState(defaults.country ?? "");
+  const [postalCode, setPostalCode] = useState(defaults.postalCode ?? "");
+  const mapsUrl = defaults.mapsUrl ?? "";
 
-  const generatedMapsUrl = useMemo(
-    () => googleMapsUrl({ streetAddress, city, province, country }),
-    [streetAddress, city, province, country],
+  const countryOptions = useMemo(() => getCountryOptions(), []);
+  const regionOptions = useMemo(() => getRegionOptions(country), [country]);
+  const cityOptions = useMemo(
+    () => getCityOptions(country, province),
+    [country, province],
   );
-  const activeMapsUrl = mapsUrl.trim() || generatedMapsUrl;
-  const customCountry =
-    country && !LOCATION_COUNTRIES.some((name) => name === country)
-      ? country
-      : null;
+  const townOptions = useMemo(
+    () => getTownOptions(country, province, city),
+    [country, province, city],
+  );
+  const coordinates = useMemo(
+    () => findLocationCoordinates({ country, province, city, town }),
+    [country, province, city, town],
+  );
+  const generatedPostalCode = useMemo(
+    () => postalCodeFor({ country, province, city, town }),
+    [country, province, city, town],
+  );
+  const lat =
+    coordinates?.latitude != null
+      ? String(coordinates.latitude)
+      : (defaults.latitude ?? "");
+  const lng =
+    coordinates?.longitude != null
+      ? String(coordinates.longitude)
+      : (defaults.longitude ?? "");
+
+  useEffect(() => {
+    if (generatedPostalCode) setPostalCode(generatedPostalCode);
+  }, [generatedPostalCode]);
 
   return (
     <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:col-span-2 sm:grid-cols-6">
       <input type="hidden" name="phone" value={phone} />
+      <input type="hidden" name="latitude" value={lat} />
+      <input type="hidden" name="longitude" value={lng} />
+      <input type="hidden" name="mapsUrl" value={mapsUrl} />
       <Labeled label="Phone number" className="sm:col-span-3">
         <PhoneInput
           defaultCountry="PH"
@@ -129,69 +132,87 @@ export function PrivateContactFields({
           autoComplete="street-address"
         />
       </Labeled>
-      <Labeled label="City" className="sm:col-span-3">
-        <Input
-          name="city"
-          value={city}
-          onChange={(event) => setCity(event.currentTarget.value)}
-          placeholder="City"
-          autoComplete="address-level2"
-        />
-      </Labeled>
-      <Labeled label="Province / State" className="sm:col-span-3">
-        <Input
-          name="province"
-          value={province}
-          onChange={(event) => setProvince(event.currentTarget.value)}
-          placeholder="Province or state"
-          autoComplete="address-level1"
-        />
-      </Labeled>
       <Labeled label="Country" className="sm:col-span-3">
         <Select
           name="country"
           value={country}
-          onChange={(event) => setCountry(event.currentTarget.value)}
+          onChange={(event) => {
+            setCountry(event.currentTarget.value);
+            setProvince("");
+            setCity("");
+            setTown("");
+          }}
           autoComplete="country-name"
         >
           <option value="">Not specified</option>
-          {customCountry && (
-            <option value={customCountry}>{customCountry}</option>
-          )}
-          {LOCATION_COUNTRIES.map((name) => (
-            <option key={name} value={name}>
-              {name}
+          {countryOptions.map((option) => (
+            <option key={option.code ?? option.value} value={option.value}>
+              {option.label}
             </option>
           ))}
         </Select>
       </Labeled>
-      <Labeled label="Google Maps pinpoint" className="sm:col-span-6">
-        <div className="grid gap-2 md:grid-cols-[1fr_auto]">
-          <Input
-            name="mapsUrl"
-            type="url"
-            value={mapsUrl}
-            onChange={(event) => setMapsUrl(event.currentTarget.value)}
-            placeholder="Paste a saved Google Maps pin URL, or use the generated link"
-          />
-          <a
-            href={activeMapsUrl || undefined}
-            target="_blank"
-            rel="noreferrer"
-            aria-disabled={!activeMapsUrl}
-            className="inline-flex h-11 items-center justify-center gap-2 rounded border border-outline-variant bg-card px-3 text-sm font-semibold text-on-surface transition-colors hover:border-accent hover:text-accent aria-disabled:pointer-events-none aria-disabled:opacity-40"
-          >
-            <MapPin className="size-4" aria-hidden />
-            Open pin
-            <ExternalLink className="size-3.5" aria-hidden />
-          </a>
-        </div>
-        {generatedMapsUrl && (
-          <p className="mt-1 text-xs text-on-surface-variant">
-            Generated from the private address. Paste a more precise pin URL if
-            Google Maps needs correction.
-          </p>
-        )}
+      <Labeled label="Region / state" className="sm:col-span-2">
+        <Select
+          name="province"
+          value={province}
+          onChange={(event) => {
+            setProvince(event.currentTarget.value);
+            setCity("");
+            setTown("");
+          }}
+          autoComplete="address-level1"
+        >
+          <option value="">Not specified</option>
+          {regionOptions.map((option) => (
+            <option key={option.code ?? option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </Select>
+      </Labeled>
+      <Labeled label="City" className="sm:col-span-2">
+        <Select
+          name="city"
+          value={city}
+          onChange={(event) => {
+            setCity(event.currentTarget.value);
+            setTown("");
+          }}
+          autoComplete="address-level2"
+          disabled={!province || cityOptions.length === 0}
+        >
+          <option value="">Not specified</option>
+          {cityOptions.map((option) => (
+            <option key={option.code ?? option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </Select>
+      </Labeled>
+      <Labeled label="Town / barangay" className="sm:col-span-2">
+        <Select
+          name="town"
+          value={town}
+          onChange={(event) => setTown(event.currentTarget.value)}
+          disabled={!city || townOptions.length === 0}
+        >
+          <option value="">Not specified</option>
+          {townOptions.map((option) => (
+            <option key={option.code ?? option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </Select>
+      </Labeled>
+      <Labeled label="ZIP / postal code" className="sm:col-span-2">
+        <Input
+          name="postalCode"
+          value={postalCode}
+          onChange={(event) => setPostalCode(event.currentTarget.value)}
+          placeholder="Auto-filled when known"
+          autoComplete="postal-code"
+        />
       </Labeled>
       <p className="sm:col-span-6 text-xs text-on-surface-variant">
         Private admin/contact fields. Public verification never shows phone,

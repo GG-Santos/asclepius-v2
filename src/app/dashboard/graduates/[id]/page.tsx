@@ -78,11 +78,20 @@ function mapsPinUrl(g: {
   streetAddress: string | null;
   city: string | null;
   province: string | null;
+  town: string | null;
   country: string | null;
+  postalCode: string | null;
   mapsUrl: string | null;
 }) {
   if (g.mapsUrl?.trim()) return g.mapsUrl.trim();
-  const query = [g.streetAddress, g.city, g.province, g.country]
+  const query = [
+    g.streetAddress,
+    g.town,
+    g.city,
+    g.province,
+    g.postalCode,
+    g.country,
+  ]
     .map((part) => part?.trim())
     .filter(Boolean)
     .join(", ");
@@ -341,8 +350,10 @@ export default async function GraduateDetailPage({
               <Row label="Phone" value={g.phone ?? "—"} />
               <Row label="Sex" value={g.gender ?? "—"} />
               <Row label="Street address" value={g.streetAddress ?? "—"} />
-              <Row label="City" value={g.city ?? "—"} />
-              <Row label="Province / State" value={g.province ?? "—"} />
+              <Row label="Town / municipality" value={g.town ?? "—"} />
+              <Row label="City / province" value={g.city ?? "—"} />
+              <Row label="Region / state" value={g.province ?? "—"} />
+              <Row label="ZIP / postal code" value={g.postalCode ?? "—"} />
               <Row label="Country" value={g.country ?? "—"} />
             </CardContent>
           </Card>

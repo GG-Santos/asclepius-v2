@@ -47,9 +47,12 @@ export default async function RecertifiedPage({
       : new Date(0)
     : rangeStart(activeRange);
   const until = custom && to ? new Date(`${to}T23:59:59.999`) : null;
+  const now = new Date();
 
   const graduates = await prisma.graduate.findMany({
     where: {
+      status: "GRADUATE",
+      expiresAt: { gte: now },
       recertifiedAt: { gte: since, ...(until ? { lte: until } : {}) },
     },
     include: { photo: true },
@@ -87,7 +90,7 @@ export default async function RecertifiedPage({
         title="Recertified graduates"
         meta={
           <p>
-            {items.length} renewal{items.length === 1 ? "" : "s"} in the
+            {items.length} active renewal{items.length === 1 ? "" : "s"} in the
             selected window. Download a ZIP of every renewed ID (front and back)
             for printing.
           </p>

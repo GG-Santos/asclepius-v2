@@ -50,7 +50,11 @@ export type StudentDefaults = {
   streetAddress?: string;
   city?: string;
   province?: string;
+  town?: string;
   country?: string;
+  postalCode?: string;
+  latitude?: string;
+  longitude?: string;
   mapsUrl?: string;
   batchCode?: string;
   // Periodic quiz raw scores, keyed by positional qN (count follows the batch).

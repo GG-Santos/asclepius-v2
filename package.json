@@ -10,6 +10,7 @@
     "format": "biome format --write",
     "check:batch-gallery-scheme": "tsx scripts/check-batch-gallery-and-scheme.ts",
     "repair:batch-12-scheme": "tsx scripts/repair-batch-12-scheme.ts",
+    "backfill:locations": "tsx scripts/backfill-location-fields.ts",
     "db:generate": "prisma generate && prisma generate --schema prisma/courses/schema.prisma",
     "db:push:courses": "prisma db push --schema prisma/courses/schema.prisma",
     "db:seed:courses": "tsx prisma/courses/seed.ts",
@@ -48,6 +49,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
+    "country-state-city": "^3.2.1",
     "date-fns": "^4.4.0",
     "fumadocs-core": "^16.9.3",
     "fumadocs-mdx": "^13.0.8",
@@ -62,6 +64,7 @@
     "meshoptimizer": "^1.1.1",
     "motion": "^12.40.0",
     "next": "16.2.7",
+    "psgc": "^2.2.0",
     "qrcode": "^1.5.4",
     "react": "19.2.4",
     "react-day-picker": "^10.0.1",
@@ -71,6 +74,7 @@
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.6.0",
     "three": "^0.184.0",
+    "zipcodes-ph": "^1.1.2",
     "zod": "^4.4.3"
   },
   "devDependencies": {

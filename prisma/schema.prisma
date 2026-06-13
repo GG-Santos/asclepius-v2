@@ -164,7 +164,11 @@ model Student {
   streetAddress String?
   city       String?
   province   String?
+  town       String?
   country    String?
+  postalCode String?
+  latitude   Float?
+  longitude  Float?
   mapsUrl    String?
 
   // Raw practical exam scores (not percentages).
@@ -217,7 +221,11 @@ model Graduate {
   streetAddress String?
   city       String?
   province   String?
+  town       String?
   country    String?
+  postalCode String?
+  latitude   Float?
+  longitude  Float?
   mapsUrl    String?
 
   // Dates: kept as raw free-text (legacy formats vary) plus a best-effort parse.

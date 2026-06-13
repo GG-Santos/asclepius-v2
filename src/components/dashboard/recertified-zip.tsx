@@ -137,8 +137,8 @@ export function RecertifiedZip({ items }: { items: RecertifiedItem[] }) {
         </Button>
         {items.length === 0 && (
           <span className="text-sm text-on-surface-variant">
-            No renewals in this window yet — renew a license and it appears
-            here.
+            No active renewals in this window yet — renew a license and it
+            appears here.
           </span>
         )}
       </div>
