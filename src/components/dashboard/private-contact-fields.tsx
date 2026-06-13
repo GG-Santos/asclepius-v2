@@ -8,8 +8,10 @@ import {
   findLocationCoordinates,
   getCityOptions,
   getCountryOptions,
+  getDistrictOptions,
   getRegionOptions,
   getTownOptions,
+  locationKey,
   postalCodeFor,
 } from "@/lib/location-options";
 
@@ -19,6 +21,7 @@ export type PrivateContactDefaults = {
   streetAddress?: string;
   city?: string;
   province?: string;
+  district?: string;
   town?: string;
   country?: string;
   postalCode?: string;
@@ -61,6 +64,7 @@ export function PrivateContactFields({
   );
   const [city, setCity] = useState(defaults.city ?? "");
   const [province, setProvince] = useState(defaults.province ?? "");
+  const [district, setDistrict] = useState(defaults.district ?? "");
   const [town, setTown] = useState(defaults.town ?? "");
   const [country, setCountry] = useState(defaults.country ?? "");
   const [postalCode, setPostalCode] = useState(defaults.postalCode ?? "");
@@ -68,13 +72,17 @@ export function PrivateContactFields({
 
   const countryOptions = useMemo(() => getCountryOptions(), []);
   const regionOptions = useMemo(() => getRegionOptions(country), [country]);
-  const cityOptions = useMemo(
-    () => getCityOptions(country, province),
+  const districtOptions = useMemo(
+    () => getDistrictOptions(country, province),
     [country, province],
   );
+  const cityOptions = useMemo(
+    () => getCityOptions(country, province, district),
+    [country, province, district],
+  );
   const townOptions = useMemo(
-    () => getTownOptions(country, province, city),
-    [country, province, city],
+    () => getTownOptions(country, province, city, district),
+    [country, province, city, district],
   );
   const coordinates = useMemo(
     () => findLocationCoordinates({ country, province, city, town }),
@@ -83,6 +91,17 @@ export function PrivateContactFields({
   const generatedPostalCode = useMemo(
     () => postalCodeFor({ country, province, city, town }),
     [country, province, city, town],
+  );
+  const visibleTownOptions = useMemo(
+    () =>
+      townOptions.some(
+        (option) => locationKey(option.value) === locationKey(town),
+      ) ||
+      !town ||
+      locationKey(town) === locationKey(city)
+        ? townOptions
+        : [{ value: town, label: town }, ...townOptions],
+    [city, town, townOptions],
   );
   const lat =
     coordinates?.latitude != null
@@ -96,6 +115,43 @@ export function PrivateContactFields({
   useEffect(() => {
     if (generatedPostalCode) setPostalCode(generatedPostalCode);
   }, [generatedPostalCode]);
+
+  useEffect(() => {
+    if (town && city && locationKey(town) === locationKey(city)) setTown("");
+  }, [city, town]);
+
+  useEffect(() => {
+    if (
+      district &&
+      !districtOptions.some(
+        (option) => locationKey(option.value) === locationKey(district),
+      )
+    ) {
+      setDistrict("");
+      setTown("");
+    }
+  }, [district, districtOptions]);
+
+  useEffect(() => {
+    if (!city || district || districtOptions.length === 0) return;
+    const matchingDistricts = getDistrictOptions(country, province, city);
+    if (matchingDistricts.length === 1) {
+      setDistrict(matchingDistricts[0].value);
+    }
+  }, [city, country, district, districtOptions.length, province]);
+
+  useEffect(() => {
+    if (
+      city &&
+      cityOptions.length > 0 &&
+      !cityOptions.some(
+        (option) => locationKey(option.value) === locationKey(city),
+      )
+    ) {
+      setCity("");
+      setTown("");
+    }
+  }, [city, cityOptions]);
 
   return (
     <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:col-span-2 sm:grid-cols-6">
@@ -123,16 +179,7 @@ export function PrivateContactFields({
         </Select>
       </Labeled>
 
-      <Labeled label="Street address" className="sm:col-span-3">
-        <Input
-          name="streetAddress"
-          value={streetAddress}
-          onChange={(event) => setStreetAddress(event.currentTarget.value)}
-          placeholder="House/building, street, barangay"
-          autoComplete="street-address"
-        />
-      </Labeled>
-      <Labeled label="Country" className="sm:col-span-3">
+      <Labeled label="Country" className="sm:col-span-6">
         <Select
           name="country"
           value={country}
@@ -140,6 +187,7 @@ export function PrivateContactFields({
             setCountry(event.currentTarget.value);
             setProvince("");
             setCity("");
+            setDistrict("");
             setTown("");
           }}
           autoComplete="country-name"
@@ -159,12 +207,32 @@ export function PrivateContactFields({
           onChange={(event) => {
             setProvince(event.currentTarget.value);
             setCity("");
+            setDistrict("");
             setTown("");
           }}
           autoComplete="address-level1"
         >
           <option value="">Not specified</option>
           {regionOptions.map((option) => (
+            <option key={option.code ?? option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </Select>
+      </Labeled>
+      <Labeled label="District" className="sm:col-span-2">
+        <Select
+          name="district"
+          value={district}
+          onChange={(event) => {
+            setDistrict(event.currentTarget.value);
+            setCity("");
+            setTown("");
+          }}
+          disabled={!province || districtOptions.length === 0}
+        >
+          <option value="">Not specified</option>
+          {districtOptions.map((option) => (
             <option key={option.code ?? option.value} value={option.value}>
               {option.label}
             </option>
@@ -190,27 +258,36 @@ export function PrivateContactFields({
           ))}
         </Select>
       </Labeled>
+      <Labeled label="Street address" className="sm:col-span-3">
+        <Input
+          name="streetAddress"
+          value={streetAddress}
+          onChange={(event) => setStreetAddress(event.currentTarget.value)}
+          placeholder="House/building, street"
+          autoComplete="street-address"
+        />
+      </Labeled>
       <Labeled label="Town / barangay" className="sm:col-span-2">
         <Select
           name="town"
           value={town}
           onChange={(event) => setTown(event.currentTarget.value)}
-          disabled={!city || townOptions.length === 0}
+          disabled={!city || visibleTownOptions.length === 0}
         >
           <option value="">Not specified</option>
-          {townOptions.map((option) => (
+          {visibleTownOptions.map((option) => (
             <option key={option.code ?? option.value} value={option.value}>
               {option.label}
             </option>
           ))}
         </Select>
       </Labeled>
-      <Labeled label="ZIP / postal code" className="sm:col-span-2">
+      <Labeled label="ZIP" className="sm:col-span-1">
         <Input
           name="postalCode"
           value={postalCode}
           onChange={(event) => setPostalCode(event.currentTarget.value)}
-          placeholder="Auto-filled when known"
+          placeholder="Auto"
           autoComplete="postal-code"
         />
       </Labeled>

@@ -99,6 +99,7 @@ function buildData(input: ReturnType<typeof graduateInputSchema.parse>) {
     streetAddress: input.streetAddress ?? null,
     city: input.city ?? null,
     province: input.province ?? null,
+    district: input.district ?? null,
     town: input.town ?? null,
     country: input.country ?? null,
     postalCode: input.postalCode ?? null,

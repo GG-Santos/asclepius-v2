@@ -23,11 +23,12 @@ const DAY_MS = 86_400_000;
 
 function labelFor(
   town?: string | null,
+  district?: string | null,
   city?: string | null,
   province?: string | null,
   country?: string | null,
 ) {
-  return locationLabel({ town, city, province, country });
+  return locationLabel({ town, district, city, province, country });
 }
 
 function nameFor(graduate: {
@@ -79,6 +80,7 @@ function coordsFor(record: {
   latitude: number | null;
   longitude: number | null;
   town: string | null;
+  district: string | null;
   city: string | null;
   province: string | null;
   country: string | null;
@@ -103,11 +105,15 @@ function spreadCoords(
   if (total <= 1) return coords;
   const ring = Math.floor(index / 8) + 1;
   const angle = (index * 137.508 * Math.PI) / 180;
-  const radius = Math.min(0.85, 0.12 * ring);
+  const radius = Math.min(1.2, 0.42 * ring);
   return {
     lat: coords.lat + Math.sin(angle) * radius,
     lng: coords.lng + Math.cos(angle) * radius,
   };
+}
+
+function clusterKey(coords: { lat: number; lng: number }) {
+  return `${Math.round(coords.lat * 2) / 2}:${Math.round(coords.lng * 2) / 2}`;
 }
 
 export async function getGraduateLocationPoints(): Promise<
@@ -138,6 +144,7 @@ export async function getGraduateLocationPoints(): Promise<
       status: true,
       expiresAt: true,
       town: true,
+      district: true,
       city: true,
       province: true,
       country: true,
@@ -154,6 +161,7 @@ export async function getGraduateLocationPoints(): Promise<
       const locationLabel =
         labelFor(
           graduate.town,
+          graduate.district,
           graduate.city,
           graduate.province,
           graduate.country,
@@ -166,7 +174,7 @@ export async function getGraduateLocationPoints(): Promise<
         coords,
         locationLabel,
         status,
-        coordKey: `${coords.lat}:${coords.lng}:${locationLabel}`,
+        coordKey: clusterKey(coords),
       };
     })
     .filter((item): item is NonNullable<typeof item> => item !== null)

@@ -1,5 +1,5 @@
 import { City, Country, State } from "country-state-city";
-import { municipalities, provinces, regions } from "psgc";
+import { barangays, municipalities, provinces, regions } from "psgc";
 import zipcodes from "zipcodes-ph/build/zipcodes.json";
 
 export type LocationOption = {
@@ -14,6 +14,7 @@ export type LocationSelection = {
   country?: string | null;
   province?: string | null;
   city?: string | null;
+  district?: string | null;
   town?: string | null;
 };
 
@@ -81,6 +82,63 @@ const COUNTRY_FALLBACK: Record<string, { lat: number; lng: number }> = {
 
 const PH_ZIPCODES = zipcodes as Record<string, string | string[]>;
 
+const NCR_BARANGAY_CITYMUN: Record<string, string> = {
+  caloocan: "Caloocan City",
+  "las pinas": "City Of Las Pinas",
+  "las piñas": "City Of Las Pinas",
+  makati: "City Of Makati",
+  malabon: "City Of Malabon",
+  mandaluyong: "City Of Mandaluyong",
+  marikina: "City Of Marikina",
+  muntinlupa: "City Of Muntinlupa",
+  navotas: "City Of Navotas",
+  paranaque: "City Of Paranaque",
+  parañaque: "City Of Paranaque",
+  pasay: "Pasay City",
+  pasig: "City Of Pasig",
+  pateros: "Pateros",
+  quezon: "Quezon City",
+  "quezon city": "Quezon City",
+  "san juan": "City Of San Juan",
+  taguig: "Taguig City",
+  valenzuela: "City Of Valenzuela",
+};
+
+const NCR_DISTRICTS = [
+  {
+    value: "Capital District",
+    label: "Capital District (1st District)",
+    cities: ["Manila"],
+  },
+  {
+    value: "Eastern Manila District",
+    label: "Eastern Manila District (2nd District)",
+    cities: ["Mandaluyong", "Marikina", "Pasig", "Quezon City", "San Juan"],
+  },
+  {
+    value: "Northern Manila District",
+    label: "Northern Manila District (3rd District)",
+    cities: ["Caloocan", "Malabon", "Navotas", "Valenzuela"],
+  },
+  {
+    value: "Southern Manila District",
+    label: "Southern Manila District (4th District)",
+    cities: [
+      "Las Piñas",
+      "Makati",
+      "Muntinlupa",
+      "Parañaque",
+      "Pasay",
+      "Pateros",
+      "Taguig",
+    ],
+  },
+];
+
+const NCR_DISTRICT_KEYS = new Set(
+  NCR_DISTRICTS.map((district) => locationKey(district.value)),
+);
+
 function clean(value?: string | null) {
   return (value ?? "").trim();
 }
@@ -99,6 +157,103 @@ function toNumber(value?: string | number | null) {
   if (value == null) return undefined;
   const number = typeof value === "number" ? value : Number.parseFloat(value);
   return Number.isFinite(number) ? number : undefined;
+}
+
+function citymunKey(value?: string | null) {
+  return clean(value)
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function barangayCitymunCandidates(city: string, municipality?: string | null) {
+  const selectedKey = locationKey(city);
+  const municipalityKey = locationKey(municipality);
+  const aliases = new Set<string>();
+  const ncrAlias = NCR_BARANGAY_CITYMUN[selectedKey];
+  if (ncrAlias) aliases.add(ncrAlias);
+  if (clean(city) && !ncrAlias) aliases.add(clean(city));
+  if (clean(municipality) && !ncrAlias) aliases.add(clean(municipality));
+  if (!ncrAlias && selectedKey) {
+    aliases.add(`City Of ${clean(city)}`);
+    aliases.add(`${clean(city)} City`);
+  }
+  if (!ncrAlias && municipalityKey && municipalityKey !== selectedKey) {
+    aliases.add(`City Of ${clean(municipality)}`);
+    aliases.add(`${clean(municipality)} City`);
+  }
+  return [...aliases];
+}
+
+function barangayOptionsForCity(
+  city: string,
+  district: string | null | undefined,
+  municipality: string | null | undefined,
+  country?: string | null,
+  region?: string | null,
+): LocationOption[] {
+  const selectedKey = locationKey(city);
+  const selectedDistrict = clean(district);
+  const selectedBarangays = (() => {
+    if (selectedKey === "manila") {
+      const shouldFilterByManilaArea =
+        selectedDistrict &&
+        !NCR_DISTRICT_KEYS.has(locationKey(selectedDistrict));
+      return barangays
+        .all()
+        .filter((barangay) => String(barangay.code).startsWith("1339"))
+        .filter(
+          (barangay) =>
+            !shouldFilterByManilaArea ||
+            citymunKey(barangay.citymun) === citymunKey(selectedDistrict),
+        );
+    }
+
+    const aliases = barangayCitymunCandidates(city, municipality);
+    const citymunKeys = new Set(aliases.map((item) => citymunKey(item)));
+    return barangays
+      .all()
+      .filter((barangay) => citymunKeys.has(citymunKey(barangay.citymun)));
+  })();
+
+  return uniqueOptions(
+    selectedBarangays.map((barangay) => ({
+      value: barangay.name,
+      label:
+        selectedKey === "manila"
+          ? `${barangay.name} (${barangay.citymun})`
+          : barangay.name,
+      code: String(barangay.code),
+      ...coordsForName(municipality ?? city, country, region),
+    })),
+  );
+}
+
+export function getDistrictOptions(
+  country?: string | null,
+  region?: string | null,
+  city?: string | null,
+): LocationOption[] {
+  const code = countryCode(country);
+  if (code !== PH_CODE) return [];
+  const regionCode = selectedRegionCode(country, region);
+  if (regionCode !== "NCR") return [];
+
+  const cityKey = locationKey(city);
+  return NCR_DISTRICTS.filter(
+    (district) =>
+      !cityKey ||
+      district.cities.some(
+        (districtCity) => locationKey(districtCity) === cityKey,
+      ),
+  ).map((district) => ({
+    value: district.value,
+    label: district.label,
+    code: district.value,
+    ...coordsForName(district.cities[0] ?? "Manila", country, region),
+  }));
 }
 
 function uniqueOptions(options: LocationOption[]) {
@@ -207,10 +362,14 @@ export function getRegionOptions(country?: string | null): LocationOption[] {
 export function getCityOptions(
   country?: string | null,
   region?: string | null,
+  district?: string | null,
 ): LocationOption[] {
   const code = countryCode(country);
   if (!code) return [];
   const regionCode = selectedRegionCode(country, region);
+  const selectedDistrict = NCR_DISTRICTS.find(
+    (item) => locationKey(item.value) === locationKey(district),
+  );
   if (code === PH_CODE) {
     const designation = getRegionOptions(country).find(
       (item) => item.code === regionCode,
@@ -225,7 +384,7 @@ export function getCityOptions(
             item.name === designation,
         ) ?? null;
     if (psgcRegion) {
-      return uniqueOptions(
+      const options = uniqueOptions(
         psgcRegion.provinces.flatMap((province) => {
           const mappedProvince = provinces.find(province.name);
           return (mappedProvince?.municipalities ?? []).map((municipality) => {
@@ -242,6 +401,15 @@ export function getCityOptions(
           });
         }),
       );
+      if (regionCode === "NCR" && selectedDistrict) {
+        const districtCityKeys = new Set(
+          selectedDistrict.cities.map((city) => locationKey(city)),
+        );
+        return options.filter((option) =>
+          districtCityKeys.has(locationKey(option.value)),
+        );
+      }
+      return options;
     }
   }
   if (!regionCode) return [];
@@ -260,6 +428,7 @@ export function getTownOptions(
   country?: string | null,
   region?: string | null,
   city?: string | null,
+  district?: string | null,
 ): LocationOption[] {
   const code = countryCode(country);
   if (!code) return [];
@@ -283,35 +452,16 @@ export function getTownOptions(
               (locationKey(item.name) === "quezon" &&
                 locationKey(selectedCity) === "quezon")),
         ) ?? null;
-    if (municipality?.barangays?.length) {
-      return uniqueOptions(
-        municipality.barangays.map((barangay) => ({
-          value: barangay.name,
-          label: barangay.name,
-          code: String(barangay.code),
-          ...coordsForName(municipality.name, country, region),
-        })),
-      );
-    }
+    return barangayOptionsForCity(
+      selectedCity,
+      district,
+      municipality?.name,
+      country,
+      region,
+    );
   }
 
-  const regionCode = selectedRegionCode(country, region);
-  const cityOption =
-    regionCode &&
-    City.getCitiesOfState(code, regionCode).find(
-      (item) => locationKey(item.name) === locationKey(selectedCity),
-    );
-  return cityOption
-    ? [
-        {
-          value: cityOption.name,
-          label: cityOption.name,
-          code: cityOption.name,
-          latitude: toNumber(cityOption.latitude),
-          longitude: toNumber(cityOption.longitude),
-        },
-      ]
-    : [];
+  return [];
 }
 
 function coordsForName(
@@ -418,7 +568,13 @@ function reversePhilippineZip(value?: string | null) {
 }
 
 export function locationLabel(selection: LocationSelection) {
-  return [selection.town, selection.city, selection.province, selection.country]
+  return [
+    selection.town,
+    selection.district,
+    selection.city,
+    selection.province,
+    selection.country,
+  ]
     .map((part) => clean(part))
     .filter(Boolean)
     .join(", ");

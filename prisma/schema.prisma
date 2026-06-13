@@ -164,6 +164,7 @@ model Student {
   streetAddress String?
   city       String?
   province   String?
+  district   String?
   town       String?
   country    String?
   postalCode String?
@@ -221,6 +222,7 @@ model Graduate {
   streetAddress String?
   city       String?
   province   String?
+  district   String?
   town       String?
   country    String?
   postalCode String?

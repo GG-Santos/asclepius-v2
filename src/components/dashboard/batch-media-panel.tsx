@@ -9,6 +9,7 @@ import {
   ImageUp,
   Library,
   Link2,
+  Save,
   X,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -31,6 +32,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   type BatchGalleryItem,
   normalizeGalleryItems,
@@ -39,6 +42,7 @@ import {
 export type AssetOption = { id: string; name: string; url: string };
 
 type PickTarget = "hero" | "gallery";
+type GalleryMetaDraft = { title: string; date: string; caption: string };
 
 const MAX_SIDE = 2560;
 const HERO_ASPECT = 16 / 9;
@@ -142,7 +146,11 @@ export function BatchMediaPanel({
     galleryUrls,
   );
 
-  function run(action: () => Promise<BatchMediaState>, success: string) {
+  function run(
+    action: () => Promise<BatchMediaState>,
+    success: string,
+    onSuccess?: () => void,
+  ) {
     startTransition(async () => {
       try {
         const res = await action();
@@ -151,6 +159,7 @@ export function BatchMediaPanel({
           return;
         }
         toast.success(success);
+        onSuccess?.();
         router.refresh();
       } catch {
         toast.error("Something went wrong.");
@@ -189,18 +198,25 @@ export function BatchMediaPanel({
     return url;
   }
 
-  function applyUrl(target: PickTarget, url: string, success: string) {
+  function applyUrl(
+    target: PickTarget,
+    url: string,
+    success: string,
+    meta?: GalleryMetaDraft,
+    onSuccess?: () => void,
+  ) {
     const fd = new FormData();
     fd.set("id", batchId);
     fd.set("url", url);
     if (target === "gallery") {
-      fd.set("title", galleryTitleInput);
-      fd.set("date", galleryDateInput);
-      fd.set("caption", galleryCaptionInput);
+      fd.set("title", meta?.title ?? galleryTitleInput);
+      fd.set("date", meta?.date ?? galleryDateInput);
+      fd.set("caption", meta?.caption ?? galleryCaptionInput);
     }
     run(
       () => (target === "hero" ? setBatchHero(fd) : addBatchGalleryImage(fd)),
       success,
+      onSuccess,
     );
   }
 
@@ -246,11 +262,12 @@ export function BatchMediaPanel({
         const cropped = await cropToFile(src, area);
         const url = await uploadFile(cropped);
         if (url) {
-          applyUrl(
-            target,
-            url,
-            target === "hero" ? "Hero updated." : "Image uploaded and added.",
-          );
+          if (target === "gallery") {
+            setGalleryUrlInput(url);
+            toast.success("Image ready. Add details, then save it.");
+          } else {
+            applyUrl(target, url, "Hero updated.");
+          }
         }
       } catch {
         toast.error("Could not crop the image.");
@@ -292,6 +309,29 @@ export function BatchMediaPanel({
     fd.set("date", date?.value ?? item.date);
     fd.set("caption", caption?.value ?? item.caption);
     run(() => updateBatchGalleryImage(fd), "Image details saved.");
+  }
+
+  function clearGalleryDraft(): void {
+    setGalleryUrlInput("");
+    setGalleryTitleInput("");
+    setGalleryDateInput("");
+    setGalleryCaptionInput("");
+  }
+
+  function addGalleryDraft(): void {
+    const url = galleryUrlInput.trim();
+    if (!url) return;
+    applyUrl(
+      "gallery",
+      url,
+      "Added to gallery.",
+      {
+        title: galleryTitleInput,
+        date: galleryDateInput,
+        caption: galleryCaptionInput,
+      },
+      clearGalleryDraft,
+    );
   }
 
   const sourceButtons = (target: PickTarget, fileRef: typeof heroFileRef) => (
@@ -391,25 +431,34 @@ export function BatchMediaPanel({
           )}
           <div className="flex flex-wrap items-center gap-2">
             {sourceButtons("hero", heroFileRef)}
-            <div className="flex min-w-[220px] flex-1 items-center gap-2">
-              <Input
-                value={heroUrlInput}
-                onChange={(e) => setHeroUrlInput(e.target.value)}
-                placeholder="https://… image URL"
-                className="h-9 text-sm"
-              />
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={pending || !heroUrlInput.trim()}
-                onClick={() => {
-                  applyUrl("hero", heroUrlInput.trim(), "Hero updated.");
-                  setHeroUrlInput("");
-                }}
-              >
-                <Link2 aria-hidden /> Set
-              </Button>
+            <div className="min-w-[220px] flex-1 space-y-1.5">
+              <Label htmlFor="batch-hero-url">Hero image URL</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="batch-hero-url"
+                  value={heroUrlInput}
+                  onChange={(e) => setHeroUrlInput(e.target.value)}
+                  placeholder="https://... image URL"
+                  className="h-9 text-sm"
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={pending || !heroUrlInput.trim()}
+                  onClick={() => {
+                    applyUrl(
+                      "hero",
+                      heroUrlInput.trim(),
+                      "Hero updated.",
+                      undefined,
+                      () => setHeroUrlInput(""),
+                    );
+                  }}
+                >
+                  <Link2 aria-hidden /> Set
+                </Button>
+              </div>
             </div>
           </div>
         </section>
@@ -469,27 +518,37 @@ export function BatchMediaPanel({
                       </button>
                     </div>
                   </div>
-                  <div className="space-y-2 p-3">
-                    <div className="grid grid-cols-[1fr_9.5rem] gap-2">
-                      <Input
-                        id={`gallery-title-${i}`}
-                        defaultValue={item.title}
-                        placeholder="Image title"
-                        className="h-9 text-xs"
-                      />
-                      <Input
-                        id={`gallery-date-${i}`}
-                        type="date"
-                        defaultValue={item.date}
-                        className="h-9 text-xs"
+                  <div className="space-y-3 p-3">
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_9.5rem]">
+                      <div className="space-y-1.5">
+                        <Label htmlFor={`gallery-title-${i}`}>Title</Label>
+                        <Input
+                          id={`gallery-title-${i}`}
+                          defaultValue={item.title}
+                          placeholder="Image title"
+                          className="h-9 text-xs"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor={`gallery-date-${i}`}>Date</Label>
+                        <Input
+                          id={`gallery-date-${i}`}
+                          type="date"
+                          defaultValue={item.date}
+                          className="h-9 text-xs"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor={`gallery-caption-${i}`}>Caption</Label>
+                      <Textarea
+                        id={`gallery-caption-${i}`}
+                        defaultValue={item.caption}
+                        placeholder="Caption"
+                        rows={2}
+                        className="min-h-16 resize-y text-xs"
                       />
                     </div>
-                    <Input
-                      id={`gallery-caption-${i}`}
-                      defaultValue={item.caption}
-                      placeholder="Caption"
-                      className="h-9 text-xs"
-                    />
                     <div className="flex justify-end">
                       <Button
                         type="button"
@@ -498,7 +557,7 @@ export function BatchMediaPanel({
                         disabled={pending}
                         onClick={() => saveGalleryMeta(i, item)}
                       >
-                        Save details
+                        <Save aria-hidden /> Save details
                       </Button>
                     </div>
                   </div>
@@ -506,54 +565,91 @@ export function BatchMediaPanel({
               ))}
             </ul>
           )}
-          <div className="flex flex-wrap items-center gap-2">
-            {sourceButtons("gallery", galleryFileRef)}
-            <div className="flex min-w-[220px] flex-1 items-center gap-2">
-              <Input
-                value={galleryUrlInput}
-                onChange={(e) => setGalleryUrlInput(e.target.value)}
-                placeholder="https://… image URL"
-                className="h-9 text-sm"
-              />
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={pending || !galleryUrlInput.trim()}
-                onClick={() => {
-                  applyUrl(
-                    "gallery",
-                    galleryUrlInput.trim(),
-                    "Added to gallery.",
-                  );
-                  setGalleryUrlInput("");
-                  setGalleryTitleInput("");
-                  setGalleryDateInput("");
-                  setGalleryCaptionInput("");
-                }}
-              >
-                <Link2 aria-hidden /> Add
-              </Button>
+          <div className="space-y-3 border-outline-variant border-t pt-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-label-caps text-on-surface-variant">
+                Add gallery image
+              </p>
+              {sourceButtons("gallery", galleryFileRef)}
             </div>
-            <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-[1fr_9.5rem]">
-              <Input
-                value={galleryTitleInput}
-                onChange={(e) => setGalleryTitleInput(e.target.value)}
-                placeholder="Optional title"
-                className="h-9 text-sm"
-              />
-              <Input
-                value={galleryDateInput}
-                onChange={(e) => setGalleryDateInput(e.target.value)}
-                type="date"
-                className="h-9 text-sm"
-              />
-              <Input
-                value={galleryCaptionInput}
-                onChange={(e) => setGalleryCaptionInput(e.target.value)}
-                placeholder="Optional caption"
-                className="h-9 text-sm sm:col-span-2"
-              />
+            <div className="grid gap-3 lg:grid-cols-[11rem_1fr]">
+              <div className="flex min-h-32 items-center justify-center overflow-hidden rounded-lg border border-dashed border-outline-variant bg-surface-low/40 text-center text-xs text-on-surface-variant dark:bg-white/[0.02]">
+                {galleryUrlInput.trim() ? (
+                  // biome-ignore lint/performance/noImgElement: admin-provided pending media URL
+                  <img
+                    src={galleryUrlInput.trim()}
+                    alt="Pending gallery"
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  "No image selected"
+                )}
+              </div>
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="batch-gallery-url">Image URL</Label>
+                  <Input
+                    id="batch-gallery-url"
+                    value={galleryUrlInput}
+                    onChange={(e) => setGalleryUrlInput(e.target.value)}
+                    placeholder="https://... image URL"
+                    className="h-9 text-sm"
+                  />
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_9.5rem]">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="batch-gallery-title">Title</Label>
+                    <Input
+                      id="batch-gallery-title"
+                      value={galleryTitleInput}
+                      onChange={(e) => setGalleryTitleInput(e.target.value)}
+                      placeholder="Optional title"
+                      className="h-9 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="batch-gallery-date">Date</Label>
+                    <Input
+                      id="batch-gallery-date"
+                      value={galleryDateInput}
+                      onChange={(e) => setGalleryDateInput(e.target.value)}
+                      type="date"
+                      className="h-9 text-sm"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="batch-gallery-caption">Caption</Label>
+                  <Textarea
+                    id="batch-gallery-caption"
+                    value={galleryCaptionInput}
+                    onChange={(e) => setGalleryCaptionInput(e.target.value)}
+                    placeholder="Optional caption"
+                    rows={3}
+                    className="min-h-20 resize-y text-sm"
+                  />
+                </div>
+                <div className="flex flex-wrap justify-end gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    disabled={pending || !galleryUrlInput.trim()}
+                    onClick={clearGalleryDraft}
+                  >
+                    Clear
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={pending || !galleryUrlInput.trim()}
+                    onClick={addGalleryDraft}
+                  >
+                    <ImagePlus aria-hidden /> Add to gallery
+                  </Button>
+                </div>
+              </div>
             </div>
           </div>
         </section>
@@ -665,12 +761,13 @@ export function BatchMediaPanel({
                 onClick={() => {
                   const target = pickerFor;
                   setPickerFor(null);
-                  if (target)
-                    applyUrl(
-                      target,
-                      a.url,
-                      target === "hero" ? "Hero updated." : "Added to gallery.",
-                    );
+                  if (!target) return;
+                  if (target === "gallery") {
+                    setGalleryUrlInput(a.url);
+                    toast.success("Image selected. Add details, then save it.");
+                    return;
+                  }
+                  applyUrl(target, a.url, "Hero updated.");
                 }}
                 className="group overflow-hidden rounded-lg border border-outline-variant/60 transition-colors hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent dark:border-white/[0.08]"
               >

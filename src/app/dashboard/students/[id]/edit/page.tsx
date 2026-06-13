@@ -75,6 +75,7 @@ export default async function EditStudentPage({
     streetAddress: s.streetAddress ?? undefined,
     city: s.city ?? undefined,
     province: s.province ?? undefined,
+    district: s.district ?? undefined,
     town: s.town ?? undefined,
     country: s.country ?? undefined,
     postalCode: s.postalCode ?? undefined,

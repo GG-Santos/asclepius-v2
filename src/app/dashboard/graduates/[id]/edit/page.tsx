@@ -65,6 +65,7 @@ export default async function EditGraduatePage({
     streetAddress: g.streetAddress ?? undefined,
     city: g.city ?? undefined,
     province: g.province ?? undefined,
+    district: g.district ?? undefined,
     town: g.town ?? undefined,
     country: g.country ?? undefined,
     postalCode: g.postalCode ?? undefined,

@@ -78,6 +78,7 @@ function mapsPinUrl(g: {
   streetAddress: string | null;
   city: string | null;
   province: string | null;
+  district: string | null;
   town: string | null;
   country: string | null;
   postalCode: string | null;
@@ -87,6 +88,7 @@ function mapsPinUrl(g: {
   const query = [
     g.streetAddress,
     g.town,
+    g.district,
     g.city,
     g.province,
     g.postalCode,
@@ -350,6 +352,7 @@ export default async function GraduateDetailPage({
               <Row label="Phone" value={g.phone ?? "—"} />
               <Row label="Sex" value={g.gender ?? "—"} />
               <Row label="Street address" value={g.streetAddress ?? "—"} />
+              <Row label="District" value={g.district ?? "—"} />
               <Row label="Town / municipality" value={g.town ?? "—"} />
               <Row label="City / province" value={g.city ?? "—"} />
               <Row label="Region / state" value={g.province ?? "—"} />

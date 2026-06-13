@@ -396,6 +396,7 @@ export async function markBatchGraduated(
           streetAddress: s.streetAddress,
           city: s.city,
           province: s.province,
+          district: s.district,
           town: s.town,
           country: s.country,
           postalCode: s.postalCode,

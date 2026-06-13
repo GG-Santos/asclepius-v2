@@ -1,4 +1,4 @@
-import { ArrowLeft, GraduationCap, ShieldCheck } from "lucide-react";
+import { ArrowLeft, GraduationCap, Images, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CohortGallery } from "@/components/cohort-gallery";
@@ -122,29 +122,24 @@ export default async function CohortPage({
           </div>
         </section>
 
-        {/* Cohort hero — the batch group photo as a framed 16:9 photo (the
-            admin chooses the exact crop in the dashboard, so nobody gets cut
-            off here). */}
         {heroImageUrl && (
-          <section className="mx-auto w-full max-w-[1000px] px-4 pt-12 md:px-8">
-            {/* biome-ignore lint/performance/noImgElement: admin-curated media on arbitrary domains */}
-            <img
-              src={heroImageUrl}
-              alt={`${batch.label ?? title} batch group portrait`}
-              className="aspect-video w-full rounded-2xl border border-outline-variant/60 object-cover shadow-[var(--shadow-clinical-md)] dark:border-white/[0.08]"
-            />
-          </section>
-        )}
-
-        {galleryItems.length > 0 && (
-          <section className="mx-auto w-full max-w-[1000px] px-4 pt-12 md:px-8">
-            <h2 className="mb-4 text-sm font-semibold uppercase tracking-widest text-on-surface-variant">
-              Gallery
-            </h2>
-            <CohortGallery
-              items={galleryItems}
-              cohortName={batch.label ?? title}
-            />
+          <section className="bg-surface">
+            <div className="mx-auto w-full max-w-[1000px] px-4 py-12 md:px-8">
+              <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <p className="text-label-caps text-accent">Cohort portrait</p>
+                </div>
+                <p className="text-sm text-on-surface-variant">
+                  Official batch group photo
+                </p>
+              </div>
+              {/* biome-ignore lint/performance/noImgElement: admin-curated media on arbitrary domains */}
+              <img
+                src={heroImageUrl}
+                alt={`${batch.label ?? title} batch group portrait`}
+                className="aspect-video w-full rounded-lg border border-outline-variant/60 object-cover shadow-[var(--shadow-clinical-md)] dark:border-white/[0.08]"
+              />
+            </div>
           </section>
         )}
 
@@ -186,6 +181,35 @@ export default async function CohortPage({
             </ul>
           )}
         </section>
+
+        {galleryItems.length > 0 && (
+          <section className="overflow-hidden border-y border-outline-variant bg-surface-container dark:border-white/[0.06] dark:bg-surface">
+            <div className="mx-auto w-full max-w-[1000px] px-4 pt-12 md:px-8">
+              <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+                <div>
+                  <p className="inline-flex items-center gap-2 text-label-caps text-accent">
+                    <Images className="size-4" aria-hidden />
+                    Batch gallery
+                  </p>
+                  <h2 className="mt-1 text-2xl font-bold tracking-tight text-on-surface">
+                    Training moments
+                  </h2>
+                </div>
+                <p className="text-sm text-on-surface-variant">
+                  {galleryItems.length}{" "}
+                  {galleryItems.length === 1 ? "photo" : "photos"} in this batch
+                  record
+                </p>
+              </div>
+            </div>
+            <div className="w-full px-4 pb-12 md:px-8 lg:px-12">
+              <CohortGallery
+                items={galleryItems}
+                cohortName={batch.label ?? title}
+              />
+            </div>
+          </section>
+        )}
       </main>
     </div>
   );

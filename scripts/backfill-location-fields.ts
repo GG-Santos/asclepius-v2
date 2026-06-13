@@ -1,5 +1,6 @@
 import {
   findLocationCoordinates,
+  getDistrictOptions,
   getRegionOptions,
   locationKey,
   postalCodeFor,
@@ -11,6 +12,7 @@ type LocationRow = {
   streetAddress: string | null;
   city: string | null;
   province: string | null;
+  district: string | null;
   town: string | null;
   country: string | null;
   postalCode: string | null;
@@ -37,6 +39,7 @@ function hasAddress(row: LocationRow) {
     clean(row.streetAddress) ||
       clean(row.city) ||
       clean(row.province) ||
+      clean(row.district) ||
       clean(row.town) ||
       clean(row.country),
   );
@@ -78,6 +81,31 @@ function canonicalRegion(country: string | null, province: string | null) {
   return value;
 }
 
+function canonicalDistrict(
+  country: string | null,
+  province: string | null,
+  city: string | null,
+  district: string | null,
+  _town: string | null,
+) {
+  const current = clean(district);
+  const options = getDistrictOptions(country, province);
+  if (current) {
+    const match = options.find(
+      (option) =>
+        locationKey(option.value) === locationKey(current) ||
+        locationKey(option.label) === locationKey(current),
+    );
+    if (match) return match.value;
+    if (options.length === 0) return current;
+  }
+
+  const cityDistricts = getDistrictOptions(country, province, city);
+  if (cityDistricts.length === 1) return cityDistricts[0].value;
+
+  return "";
+}
+
 function normalize(row: LocationRow) {
   if (!hasAddress(row)) return null;
 
@@ -85,6 +113,7 @@ function normalize(row: LocationRow) {
     clean(row.country) || (isPhilippines(row.country) ? "Philippines" : "");
   let province = canonicalRegion(country, row.province);
   let city = normalizeNcrCity(row.city);
+  let district = clean(row.district);
   let town = clean(row.town);
 
   if (isPhilippines(country)) {
@@ -100,12 +129,14 @@ function normalize(row: LocationRow) {
     if (locationKey(city) === locationKey(town)) {
       town = "";
     }
+    district = canonicalDistrict(country, province, city, district, town);
   }
 
   const selection = {
     country: nullable(country),
     province: nullable(province),
     city: nullable(city),
+    district: nullable(district),
     town: nullable(town),
   };
   const coords = findLocationCoordinates(selection);
@@ -116,6 +147,7 @@ function normalize(row: LocationRow) {
     country: selection.country,
     province: selection.province,
     city: selection.city,
+    district: selection.district,
     town: selection.town,
     postalCode: nullable(postalCode),
     latitude: coords?.latitude ?? row.latitude,
@@ -131,6 +163,7 @@ function changed(
     row.country !== next.country ||
     row.province !== next.province ||
     row.city !== next.city ||
+    row.district !== next.district ||
     row.town !== next.town ||
     row.postalCode !== next.postalCode ||
     row.latitude !== next.latitude ||
@@ -145,6 +178,7 @@ async function backfillStudents(): Promise<BackfillStats> {
         { streetAddress: { not: null } },
         { city: { not: null } },
         { province: { not: null } },
+        { district: { not: null } },
         { town: { not: null } },
         { country: { not: null } },
       ],
@@ -154,6 +188,7 @@ async function backfillStudents(): Promise<BackfillStats> {
       streetAddress: true,
       city: true,
       province: true,
+      district: true,
       town: true,
       country: true,
       postalCode: true,
@@ -181,6 +216,7 @@ async function backfillGraduates(): Promise<BackfillStats> {
         { streetAddress: { not: null } },
         { city: { not: null } },
         { province: { not: null } },
+        { district: { not: null } },
         { town: { not: null } },
         { country: { not: null } },
       ],
@@ -190,6 +226,7 @@ async function backfillGraduates(): Promise<BackfillStats> {
       streetAddress: true,
       city: true,
       province: true,
+      district: true,
       town: true,
       country: true,
       postalCode: true,
