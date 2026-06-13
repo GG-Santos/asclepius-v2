@@ -1,4 +1,4 @@
-import { ArrowLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft, ChevronRight, ExternalLink, MapPin } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AdminTestimonialForm } from "@/components/dashboard/admin-testimonial-form";
@@ -74,6 +74,23 @@ function fmt(d: Date | null) {
   return d ? d.toLocaleDateString() : "—";
 }
 
+function mapsPinUrl(g: {
+  streetAddress: string | null;
+  city: string | null;
+  province: string | null;
+  country: string | null;
+  mapsUrl: string | null;
+}) {
+  if (g.mapsUrl?.trim()) return g.mapsUrl.trim();
+  const query = [g.streetAddress, g.city, g.province, g.country]
+    .map((part) => part?.trim())
+    .filter(Boolean)
+    .join(", ");
+  return query
+    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`
+    : null;
+}
+
 export default async function GraduateDetailPage({
   params,
 }: {
@@ -94,6 +111,7 @@ export default async function GraduateDetailPage({
   const qrDataUrl = await verifyQrDataUrl(g.lcn);
   const certQrDataUrl = await certificateQrDataUrl(g.lcn);
   const statusBadge = STATUS_BADGE[g.status];
+  const contactPinUrl = mapsPinUrl(g);
 
   // Ranking (auto, weighted): batch + global among non-archived, non-legacy
   // graduates. Legacy records have no grade data to rank.
@@ -300,6 +318,32 @@ export default async function GraduateDetailPage({
                 label="Latest re-certification"
                 value={`${g.registrationRaw ?? "—"}${g.registeredAt ? ` (${fmt(g.registeredAt)})` : ""}`}
               />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex-row items-center justify-between gap-3">
+              <CardTitle className="text-base">Private contact</CardTitle>
+              {contactPinUrl && (
+                <Link
+                  href={contactPinUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 rounded-md border border-outline-variant bg-card px-2.5 py-1.5 text-xs font-semibold text-on-surface transition-colors hover:border-accent hover:text-accent"
+                >
+                  <MapPin className="size-3.5" aria-hidden />
+                  Open pin
+                  <ExternalLink className="size-3" aria-hidden />
+                </Link>
+              )}
+            </CardHeader>
+            <CardContent className="divide-y divide-outline-variant/40 pt-0">
+              <Row label="Phone" value={g.phone ?? "—"} />
+              <Row label="Sex" value={g.gender ?? "—"} />
+              <Row label="Street address" value={g.streetAddress ?? "—"} />
+              <Row label="City" value={g.city ?? "—"} />
+              <Row label="Province / State" value={g.province ?? "—"} />
+              <Row label="Country" value={g.country ?? "—"} />
             </CardContent>
           </Card>
 

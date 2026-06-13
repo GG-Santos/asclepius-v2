@@ -242,7 +242,7 @@ export function BatchDetailClient({
           >
             <input type="hidden" name="id" value={batch.id} />
             <div className="shrink-0 md:w-48">
-              <BatchLogoPanel currentUrl={batch.logoUrl} />
+              <BatchLogoPanel currentUrl={batch.logoUrl} batchId={batch.id} />
             </div>
             <div className="flex flex-1 flex-col gap-4">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

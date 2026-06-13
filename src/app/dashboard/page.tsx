@@ -2,6 +2,7 @@ import {
   CalendarClock,
   CircleCheck,
   CircleX,
+  Globe2,
   GraduationCap,
   Search,
   ShieldX,
@@ -9,6 +10,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
+import { GraduateLocationGlobe } from "@/components/dashboard/graduate-location-globe";
 import { type KpiDelta, KpiStat } from "@/components/dashboard/kpi-stat";
 import { NeedsAttention } from "@/components/dashboard/needs-attention";
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -23,6 +25,10 @@ import {
   normalizeRange,
 } from "@/lib/analytics";
 import { buildAlerts } from "@/lib/dashboard-insights";
+import {
+  type GraduateLocationPoint,
+  getGraduateLocationPoints,
+} from "@/lib/graduate-location-analytics";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { getSubjectAnalytics } from "@/lib/subject-analytics";
@@ -112,6 +118,7 @@ export default async function DashboardOverview({
   // while resolving (R4).
   const analyticsPromise = getAdminAnalytics(r);
   const subjectPromise = getSubjectAnalytics();
+  const locationPromise = getGraduateLocationPoints();
 
   return (
     <div className="mx-auto max-w-[1200px] space-y-8">
@@ -159,10 +166,15 @@ export default async function DashboardOverview({
         <KpiZone analyticsPromise={analyticsPromise} rangeDays={r} />
       </Suspense>
 
-      {/* Zone 3 — needs attention worklist */}
-      <Suspense fallback={<Skeleton className="h-40 w-full" />}>
-        <AttentionZone analyticsPromise={analyticsPromise} />
-      </Suspense>
+      {/* Zone 3 — operations row: location globe + needs attention */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Suspense fallback={<Skeleton className="h-96 w-full" />}>
+          <LocationGlobeZone locationPromise={locationPromise} />
+        </Suspense>
+        <Suspense fallback={<Skeleton className="h-96 w-full" />}>
+          <AttentionZone analyticsPromise={analyticsPromise} />
+        </Suspense>
+      </div>
 
       {/* Zone 4 — expiring queue + recent verification activity */}
       <Suspense fallback={<ListsZoneSkeleton />}>
@@ -324,6 +336,30 @@ async function AttentionZone({
 }) {
   const a = await analyticsPromise;
   return <NeedsAttention alerts={buildAlerts(a)} />;
+}
+
+async function LocationGlobeZone({
+  locationPromise,
+}: {
+  locationPromise: Promise<GraduateLocationPoint[]>;
+}) {
+  const points = await locationPromise;
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Globe2 className="size-4 text-accent" />
+          Graduate locations
+        </CardTitle>
+        <p className="mt-1 text-sm text-on-surface-variant">
+          Consent-safe analytics from coarse location fields only.
+        </p>
+      </CardHeader>
+      <CardContent>
+        <GraduateLocationGlobe points={points} />
+      </CardContent>
+    </Card>
+  );
 }
 
 async function ListsZone({

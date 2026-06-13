@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, RotateCcw, Trash2 } from "lucide-react";
+import { ChevronRight, Plus, RotateCcw, Settings2, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -9,6 +9,7 @@ import { ConfirmDialog } from "@/components/dashboard/confirm-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DatePicker } from "@/components/ui/date-picker";
+import { Input } from "@/components/ui/input";
 import {
   ASSESSMENT_SCHEME_TEMPLATES,
   buildCategoryScheme,
@@ -157,6 +158,18 @@ export function BatchGradingSchemeEditor({
       defaultTemplate(batchCode, defaultTemplateId)?.scheme.missingAsZero ??
       false,
   );
+  const templateMissingAsZero =
+    defaultTemplate(batchCode, defaultTemplateId)?.scheme.missingAsZero ??
+    false;
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(
+    () =>
+      new Set(
+        rows.length > 4 && !initialScheme
+          ? rows.map((category) => category.id)
+          : [],
+      ),
+  );
   const [pending, startTransition] = useTransition();
   const [confirmSave, setConfirmSave] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
@@ -168,6 +181,11 @@ export function BatchGradingSchemeEditor({
   const weightOk = Math.abs(totalWeight - 100) <= 0.05;
 
   function patchCategory(id: string, field: "label" | "weight", value: string) {
+    setCollapsedIds((existing) => {
+      const next = new Set(existing);
+      next.delete(id);
+      return next;
+    });
     setRows((existing) =>
       existing.map((row) => (row.id === id ? { ...row, [field]: value } : row)),
     );
@@ -179,6 +197,11 @@ export function BatchGradingSchemeEditor({
     field: "label" | "date" | "passing" | "maxScore",
     value: string,
   ) {
+    setCollapsedIds((existing) => {
+      const next = new Set(existing);
+      next.delete(categoryId);
+      return next;
+    });
     setRows((existing) =>
       existing.map((category) =>
         category.id !== categoryId
@@ -199,26 +222,29 @@ export function BatchGradingSchemeEditor({
     setRows((existing) => {
       const legacyGroup = nextLegacyGroup(existing);
       const index = existing.length + 1;
-      return [
-        ...existing,
-        {
-          id: freshId("category"),
-          key: makeCategoryKey(`Category ${index}`, index),
-          label: "",
-          weight: "0",
-          legacyGroup,
-          assessments: [
-            {
-              id: freshId("assessment"),
-              key: `assessment-${freshId("key")}`,
-              label: "",
-              maxScore: "100",
-              passing: "",
-              date: "",
-            },
-          ],
-        },
-      ];
+      const nextCategory = {
+        id: freshId("category"),
+        key: makeCategoryKey(`Category ${index}`, index),
+        label: "",
+        weight: "0",
+        legacyGroup,
+        assessments: [
+          {
+            id: freshId("assessment"),
+            key: `assessment-${freshId("key")}`,
+            label: "",
+            maxScore: "100",
+            passing: "",
+            date: "",
+          },
+        ],
+      };
+      setCollapsedIds((ids) => {
+        const next = new Set(ids);
+        next.delete(nextCategory.id);
+        return next;
+      });
+      return [...existing, nextCategory];
     });
   }
 
@@ -339,6 +365,27 @@ export function BatchGradingSchemeEditor({
         : JSON.stringify(draftScheme)
       : "";
 
+  function categoryProblem(category: CategoryRow): string | null {
+    if (!category.label.trim()) return "Needs a category label";
+    const weight = Number(category.weight);
+    if (!Number.isFinite(weight) || weight <= 0)
+      return "Weight must be above 0";
+    if (category.assessments.length === 0) return "Needs an assessment";
+    for (const assessment of category.assessments) {
+      if (!assessment.label.trim()) return "Assessment label missing";
+      const maxScore = Number(assessment.maxScore);
+      if (!Number.isFinite(maxScore) || maxScore <= 0)
+        return "Max must be above 0";
+      if (assessment.passing !== "") {
+        const passing = Number(assessment.passing);
+        if (!Number.isFinite(passing) || passing < 0 || passing > maxScore) {
+          return "Passing must fit the max";
+        }
+      }
+    }
+    return null;
+  }
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-3">
@@ -396,205 +443,288 @@ export function BatchGradingSchemeEditor({
             )}
           </>
         )}
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-outline-variant/60 bg-surface-low px-3 py-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <label className="flex items-center gap-2 text-xs text-on-surface">
-              <input
-                type="checkbox"
-                checked={missingAsZero}
-                onChange={(event) => setMissingAsZero(event.target.checked)}
-                className="size-4 accent-[var(--color-accent)]"
-              />
-              Missing as 0
-            </label>
+        <div className="rounded-md border border-outline-variant/60 bg-surface-low px-3 py-2">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold text-on-surface">
+                Missing-score rule:{" "}
+                {missingAsZero
+                  ? "blank assessment scores count as 0"
+                  : "blank assessment scores keep the verdict incomplete"}
+              </p>
+              <p className="mt-0.5 text-xs text-on-surface-variant">
+                Automatically seeded from the selected official batch template.
+              </p>
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={() => setAdvancedOpen((open) => !open)}
+            >
+              <Settings2 aria-hidden /> Advanced
+            </Button>
           </div>
+          {advancedOpen && (
+            <div className="mt-3 flex flex-wrap items-center gap-3 border-outline-variant/40 border-t pt-3">
+              <label className="flex items-center gap-2 text-xs text-on-surface">
+                <input
+                  type="checkbox"
+                  checked={missingAsZero}
+                  onChange={(event) => setMissingAsZero(event.target.checked)}
+                  className="size-4 accent-[var(--color-accent)]"
+                />
+                Count missing assessment scores as 0
+              </label>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => setMissingAsZero(templateMissingAsZero)}
+              >
+                Use template default
+              </Button>
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-3">
+          {rows.map((category) => {
+            const problem = categoryProblem(category);
+            const collapsed = collapsedIds.has(category.id) && !problem;
+            const max = category.assessments.reduce(
+              (sum, assessment) => sum + (Number(assessment.maxScore) || 0),
+              0,
+            );
+            return (
+              <div
+                key={category.id}
+                className="rounded-md border border-outline-variant/60 bg-card"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-3 border-outline-variant/40 border-b bg-surface-container px-3 py-2">
+                  <button
+                    type="button"
+                    title={collapsed ? "Expand category" : "Collapse category"}
+                    onClick={() =>
+                      setCollapsedIds((existing) => {
+                        const next = new Set(existing);
+                        if (collapsed) next.delete(category.id);
+                        else next.add(category.id);
+                        return next;
+                      })
+                    }
+                    className="rounded p-1.5 text-on-surface-variant hover:bg-surface-high hover:text-on-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                  >
+                    <ChevronRight
+                      className={cn(
+                        "size-4 transition-transform",
+                        !collapsed && "rotate-90",
+                      )}
+                      aria-hidden
+                    />
+                  </button>
+                  <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                    <Input
+                      value={category.label}
+                      onChange={(event) =>
+                        patchCategory(category.id, "label", event.target.value)
+                      }
+                      placeholder="Category label"
+                      aria-invalid={problem ? true : undefined}
+                      className="h-9 min-w-56 flex-1 bg-surface text-sm"
+                    />
+                    <Input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={category.weight}
+                      onChange={(event) =>
+                        patchCategory(category.id, "weight", event.target.value)
+                      }
+                      aria-label={`${category.label || "Category"} weight`}
+                      className="h-9 w-24 bg-surface text-center font-mono text-sm"
+                    />
+                    <span className="font-mono text-xs text-on-surface-variant">
+                      {category.assessments.length} item
+                      {category.assessments.length === 1 ? "" : "s"} · max {max}
+                    </span>
+                    {problem && (
+                      <span className="rounded bg-error/10 px-2 py-0.5 text-[11px] font-medium text-error">
+                        {problem}
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    title="Remove category"
+                    disabled={rows.length <= 1}
+                    onClick={() =>
+                      setRows((existing) =>
+                        existing.filter((row) => row.id !== category.id),
+                      )
+                    }
+                    className="rounded p-1.5 text-on-surface-variant hover:bg-secondary/10 hover:text-secondary disabled:opacity-40"
+                  >
+                    <Trash2 className="size-4" aria-hidden />
+                  </button>
+                </div>
+
+                {!collapsed && (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full text-left text-xs">
+                      <thead className="bg-surface-low">
+                        <tr>
+                          <th className="px-3 py-2 font-semibold">
+                            Assessment
+                          </th>
+                          <th className="px-3 py-2 text-center font-semibold">
+                            Date
+                          </th>
+                          <th className="px-3 py-2 text-center font-semibold">
+                            Passing
+                          </th>
+                          <th className="px-3 py-2 text-center font-semibold">
+                            Max
+                          </th>
+                          <th className="px-3 py-2" />
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {category.assessments.map((assessment) => (
+                          <tr
+                            key={assessment.id}
+                            className="odd:bg-card even:bg-surface-low"
+                          >
+                            <td className="px-3 py-2">
+                              <Input
+                                value={assessment.label}
+                                onChange={(event) =>
+                                  patchAssessment(
+                                    category.id,
+                                    assessment.id,
+                                    "label",
+                                    event.target.value,
+                                  )
+                                }
+                                placeholder="Assessment label"
+                                className="h-9 min-w-52 bg-surface text-xs"
+                              />
+                            </td>
+                            <td className="px-3 py-2">
+                              <DatePicker
+                                value={assessment.date}
+                                outputFormat="iso"
+                                placeholder="Set date"
+                                className="min-w-40"
+                                onValueChange={(value) =>
+                                  patchAssessment(
+                                    category.id,
+                                    assessment.id,
+                                    "date",
+                                    value,
+                                  )
+                                }
+                              />
+                            </td>
+                            <td className="px-3 py-2 text-center">
+                              <Input
+                                type="number"
+                                min={0}
+                                value={assessment.passing}
+                                onChange={(event) =>
+                                  patchAssessment(
+                                    category.id,
+                                    assessment.id,
+                                    "passing",
+                                    event.target.value,
+                                  )
+                                }
+                                placeholder="-"
+                                className="h-9 w-24 bg-surface text-center font-mono text-xs"
+                              />
+                            </td>
+                            <td className="px-3 py-2 text-center">
+                              <Input
+                                type="number"
+                                min={1}
+                                value={assessment.maxScore}
+                                onChange={(event) =>
+                                  patchAssessment(
+                                    category.id,
+                                    assessment.id,
+                                    "maxScore",
+                                    event.target.value,
+                                  )
+                                }
+                                className="h-9 w-24 bg-surface text-center font-mono text-xs"
+                              />
+                            </td>
+                            <td className="px-3 py-2 text-center">
+                              <button
+                                type="button"
+                                title="Remove assessment"
+                                disabled={category.assessments.length <= 1}
+                                onClick={() =>
+                                  setRows((existing) =>
+                                    existing.map((row) =>
+                                      row.id !== category.id
+                                        ? row
+                                        : {
+                                            ...row,
+                                            assessments: row.assessments.filter(
+                                              (item) =>
+                                                item.id !== assessment.id,
+                                            ),
+                                          },
+                                    ),
+                                  )
+                                }
+                                className="rounded p-1 text-on-surface-variant hover:bg-secondary/10 hover:text-secondary disabled:opacity-40"
+                              >
+                                <Trash2 className="size-3.5" aria-hidden />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                <div className="border-outline-variant/40 border-t px-3 py-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => addAssessment(category.id)}
+                  >
+                    <Plus aria-hidden /> Add assessment
+                  </Button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="sticky bottom-0 -mx-5 -mb-5 flex flex-wrap items-center justify-between gap-3 border-outline-variant/60 border-t bg-card/95 px-5 py-3 backdrop-blur">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={addCategory}
+          >
+            <Plus aria-hidden /> Add category
+          </Button>
           <span
             className={cn(
-              "rounded-full px-2 py-0.5 font-mono text-xs font-semibold",
+              "rounded px-2 py-1 font-mono text-xs font-semibold",
               weightOk
                 ? "bg-success/15 text-success"
                 : "bg-error/15 text-error",
             )}
           >
-            {Math.round(totalWeight * 100) / 100}%
+            Category total: {Math.round(totalWeight * 100) / 100}%
           </span>
         </div>
-
-        <div className="space-y-3">
-          {rows.map((category) => (
-            <div
-              key={category.id}
-              className="rounded-md border border-outline-variant/60 bg-card"
-            >
-              <div className="flex flex-wrap items-center justify-between gap-3 border-outline-variant/40 border-b bg-surface-container px-3 py-2">
-                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-                  <input
-                    value={category.label}
-                    onChange={(event) =>
-                      patchCategory(category.id, "label", event.target.value)
-                    }
-                    placeholder="Category label"
-                    className="min-w-56 flex-1 rounded border border-outline-variant/60 bg-surface px-2 py-1 text-sm text-on-surface focus:outline-none focus:ring-1 focus:ring-accent"
-                  />
-                  <input
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    value={category.weight}
-                    onChange={(event) =>
-                      patchCategory(category.id, "weight", event.target.value)
-                    }
-                    className="w-24 rounded border border-outline-variant/60 bg-surface px-2 py-1 text-center font-mono text-sm text-on-surface focus:outline-none focus:ring-1 focus:ring-accent"
-                  />
-                </div>
-                <button
-                  type="button"
-                  title="Remove category"
-                  disabled={rows.length <= 1}
-                  onClick={() =>
-                    setRows((existing) =>
-                      existing.filter((row) => row.id !== category.id),
-                    )
-                  }
-                  className="rounded p-1.5 text-on-surface-variant hover:bg-secondary/10 hover:text-secondary disabled:opacity-40"
-                >
-                  <Trash2 className="size-4" aria-hidden />
-                </button>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-left text-xs">
-                  <thead className="bg-surface-low">
-                    <tr>
-                      <th className="px-3 py-2 font-semibold">Assessment</th>
-                      <th className="px-3 py-2 text-center font-semibold">
-                        Date
-                      </th>
-                      <th className="px-3 py-2 text-center font-semibold">
-                        Passing
-                      </th>
-                      <th className="px-3 py-2 text-center font-semibold">
-                        Max
-                      </th>
-                      <th className="px-3 py-2" />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {category.assessments.map((assessment) => (
-                      <tr
-                        key={assessment.id}
-                        className="odd:bg-card even:bg-surface-low"
-                      >
-                        <td className="px-3 py-2">
-                          <input
-                            value={assessment.label}
-                            onChange={(event) =>
-                              patchAssessment(
-                                category.id,
-                                assessment.id,
-                                "label",
-                                event.target.value,
-                              )
-                            }
-                            placeholder="Assessment label"
-                            className="w-full min-w-52 rounded border border-outline-variant/60 bg-surface px-2 py-1 text-on-surface focus:outline-none focus:ring-1 focus:ring-accent"
-                          />
-                        </td>
-                        <td className="px-3 py-2">
-                          <DatePicker
-                            value={assessment.date}
-                            outputFormat="iso"
-                            placeholder="Set date"
-                            className="min-w-40"
-                            onValueChange={(value) =>
-                              patchAssessment(
-                                category.id,
-                                assessment.id,
-                                "date",
-                                value,
-                              )
-                            }
-                          />
-                        </td>
-                        <td className="px-3 py-2 text-center">
-                          <input
-                            type="number"
-                            min={0}
-                            value={assessment.passing}
-                            onChange={(event) =>
-                              patchAssessment(
-                                category.id,
-                                assessment.id,
-                                "passing",
-                                event.target.value,
-                              )
-                            }
-                            placeholder="-"
-                            className="w-20 rounded border border-outline-variant/60 bg-surface px-2 py-1 text-center font-mono text-on-surface focus:outline-none focus:ring-1 focus:ring-accent"
-                          />
-                        </td>
-                        <td className="px-3 py-2 text-center">
-                          <input
-                            type="number"
-                            min={1}
-                            value={assessment.maxScore}
-                            onChange={(event) =>
-                              patchAssessment(
-                                category.id,
-                                assessment.id,
-                                "maxScore",
-                                event.target.value,
-                              )
-                            }
-                            className="w-20 rounded border border-outline-variant/60 bg-surface px-2 py-1 text-center font-mono text-on-surface focus:outline-none focus:ring-1 focus:ring-accent"
-                          />
-                        </td>
-                        <td className="px-3 py-2 text-center">
-                          <button
-                            type="button"
-                            title="Remove assessment"
-                            disabled={category.assessments.length <= 1}
-                            onClick={() =>
-                              setRows((existing) =>
-                                existing.map((row) =>
-                                  row.id !== category.id
-                                    ? row
-                                    : {
-                                        ...row,
-                                        assessments: row.assessments.filter(
-                                          (item) => item.id !== assessment.id,
-                                        ),
-                                      },
-                                ),
-                              )
-                            }
-                            className="rounded p-1 text-on-surface-variant hover:bg-secondary/10 hover:text-secondary disabled:opacity-40"
-                          >
-                            <Trash2 className="size-3.5" aria-hidden />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <div className="border-outline-variant/40 border-t px-3 py-2">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => addAssessment(category.id)}
-                >
-                  <Plus aria-hidden /> Add assessment
-                </Button>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <Button type="button" size="sm" variant="outline" onClick={addCategory}>
-          <Plus aria-hidden /> Add category
-        </Button>
       </CardContent>
 
       {!isDraft && (

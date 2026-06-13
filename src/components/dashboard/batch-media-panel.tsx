@@ -9,7 +9,6 @@ import {
   ImageUp,
   Library,
   Link2,
-  Trash2,
   X,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -21,6 +20,7 @@ import {
   moveBatchGalleryImage,
   removeBatchGalleryImage,
   setBatchHero,
+  updateBatchGalleryImage,
 } from "@/app/dashboard/batches/actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,6 +31,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import {
+  type BatchGalleryItem,
+  normalizeGalleryItems,
+} from "@/lib/batch-gallery";
 
 export type AssetOption = { id: string; name: string; url: string };
 
@@ -38,6 +42,7 @@ type PickTarget = "hero" | "gallery";
 
 const MAX_SIDE = 2560;
 const HERO_ASPECT = 16 / 9;
+const GALLERY_DEFAULT_ASPECT = 4 / 3;
 
 type Area = { x: number; y: number; width: number; height: number };
 
@@ -103,11 +108,13 @@ export function BatchMediaPanel({
   batchId,
   heroImageUrl,
   galleryUrls,
+  galleryItems,
   assets,
 }: {
   batchId: string;
   heroImageUrl: string | null;
   galleryUrls: string[];
+  galleryItems?: unknown;
   assets: AssetOption[];
 }) {
   const router = useRouter();
@@ -115,12 +122,25 @@ export function BatchMediaPanel({
   const [pickerFor, setPickerFor] = useState<PickTarget | null>(null);
   const [heroUrlInput, setHeroUrlInput] = useState("");
   const [galleryUrlInput, setGalleryUrlInput] = useState("");
+  const [galleryTitleInput, setGalleryTitleInput] = useState("");
+  const [galleryDateInput, setGalleryDateInput] = useState("");
+  const [galleryCaptionInput, setGalleryCaptionInput] = useState("");
   const heroFileRef = useRef<HTMLInputElement>(null);
   const galleryFileRef = useRef<HTMLInputElement>(null);
   // Hero crop dialog (drag to position, zoom — same UX as photo uploads).
   const [cropSrc, setCropSrc] = useState<string | null>(null);
+  const [cropTarget, setCropTarget] = useState<PickTarget>("hero");
   const [cropArea, setCropArea] = useState<Area | null>(null);
   const [cropZoom, setCropZoom] = useState(1);
+  const [cropAspect, setCropAspect] = useState(HERO_ASPECT);
+  const [cropOriginalAspect, setCropOriginalAspect] = useState(
+    GALLERY_DEFAULT_ASPECT,
+  );
+
+  const gallery = normalizeGalleryItems(
+    galleryItems as Parameters<typeof normalizeGalleryItems>[0],
+    galleryUrls,
+  );
 
   function run(action: () => Promise<BatchMediaState>, success: string) {
     startTransition(async () => {
@@ -173,6 +193,11 @@ export function BatchMediaPanel({
     const fd = new FormData();
     fd.set("id", batchId);
     fd.set("url", url);
+    if (target === "gallery") {
+      fd.set("title", galleryTitleInput);
+      fd.set("date", galleryDateInput);
+      fd.set("caption", galleryCaptionInput);
+    }
     run(
       () => (target === "hero" ? setBatchHero(fd) : addBatchGalleryImage(fd)),
       success,
@@ -188,26 +213,45 @@ export function BatchMediaPanel({
       // Hero goes through the 16:9 crop dialog first — the admin frames the
       // shot, so nobody gets cut off at display time.
       setCropZoom(1);
+      setCropTarget("hero");
+      setCropAspect(HERO_ASPECT);
+      setCropOriginalAspect(HERO_ASPECT);
       setCropArea(null);
       setCropSrc(URL.createObjectURL(file));
       return;
     }
-    startTransition(async () => {
-      const url = await uploadFile(file);
-      if (url) applyUrl(target, url, "Image uploaded and applied.");
-    });
+    const src = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      if (img.naturalHeight > 0) {
+        setCropOriginalAspect(img.naturalWidth / img.naturalHeight);
+      }
+    };
+    img.src = src;
+    setCropZoom(1);
+    setCropTarget("gallery");
+    setCropAspect(GALLERY_DEFAULT_ASPECT);
+    setCropArea(null);
+    setCropSrc(src);
   }
 
-  function applyHeroCrop() {
+  function applyCrop() {
     if (!cropSrc || !cropArea) return;
     const src = cropSrc;
     const area = cropArea;
+    const target = cropTarget;
     setCropSrc(null);
     startTransition(async () => {
       try {
         const cropped = await cropToFile(src, area);
         const url = await uploadFile(cropped);
-        if (url) applyUrl("hero", url, "Hero updated.");
+        if (url) {
+          applyUrl(
+            target,
+            url,
+            target === "hero" ? "Hero updated." : "Image uploaded and added.",
+          );
+        }
       } catch {
         toast.error("Could not crop the image.");
       } finally {
@@ -229,6 +273,25 @@ export function BatchMediaPanel({
       fd.set("dir", kind);
       run(() => moveBatchGalleryImage(fd), "Order updated.");
     }
+  }
+
+  function saveGalleryMeta(index: number, item: BatchGalleryItem): void {
+    const fd = new FormData();
+    fd.set("id", batchId);
+    fd.set("index", String(index));
+    const title = document.getElementById(
+      `gallery-title-${index}`,
+    ) as HTMLInputElement | null;
+    const date = document.getElementById(
+      `gallery-date-${index}`,
+    ) as HTMLInputElement | null;
+    const caption = document.getElementById(
+      `gallery-caption-${index}`,
+    ) as HTMLInputElement | null;
+    fd.set("title", title?.value ?? item.title);
+    fd.set("date", date?.value ?? item.date);
+    fd.set("caption", caption?.value ?? item.caption);
+    run(() => updateBatchGalleryImage(fd), "Image details saved.");
   }
 
   const sourceButtons = (target: PickTarget, fileRef: typeof heroFileRef) => (
@@ -354,55 +417,90 @@ export function BatchMediaPanel({
         {/* Gallery */}
         <section className="space-y-3">
           <p className="text-label-caps text-on-surface-variant">
-            Gallery ({galleryUrls.length}/24)
+            Gallery ({gallery.length}/24)
           </p>
-          {galleryUrls.length === 0 ? (
+          {gallery.length === 0 ? (
             <div className="rounded-lg border border-dashed border-outline-variant bg-surface-low/40 px-4 py-8 text-center text-sm text-on-surface-variant dark:bg-white/[0.02]">
               No gallery images yet.
             </div>
           ) : (
-            <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-              {galleryUrls.map((url, i) => (
+            <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {gallery.map((item, i) => (
                 <li
-                  key={url}
-                  className="group relative overflow-hidden rounded-lg border border-outline-variant/60 dark:border-white/[0.08]"
+                  key={`${item.url}-${i}`}
+                  className="group overflow-hidden rounded-lg border border-outline-variant/60 bg-card dark:border-white/[0.08]"
                 >
-                  {/* biome-ignore lint/performance/noImgElement: admin media on arbitrary domains */}
-                  <img
-                    src={url}
-                    alt={`Gallery ${i + 1}`}
-                    className="aspect-[4/3] w-full object-cover"
-                  />
-                  <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-1 bg-black/55 px-1.5 py-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-                    <div className="flex items-center gap-0.5">
+                  <div className="relative">
+                    {/* biome-ignore lint/performance/noImgElement: admin media on arbitrary domains */}
+                    <img
+                      src={item.url}
+                      alt={item.title || `Gallery ${i + 1}`}
+                      className="aspect-[4/3] w-full object-cover"
+                    />
+                    <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-1 bg-black/55 px-1.5 py-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                      <div className="flex items-center gap-0.5">
+                        <button
+                          type="button"
+                          disabled={pending || i === 0}
+                          title="Move earlier"
+                          onClick={() => galleryItemAction(i, "up")}
+                          className="rounded p-1 text-white hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-30"
+                        >
+                          <ArrowLeft className="size-3.5" aria-hidden />
+                        </button>
+                        <button
+                          type="button"
+                          disabled={pending || i === gallery.length - 1}
+                          title="Move later"
+                          onClick={() => galleryItemAction(i, "down")}
+                          className="rounded p-1 text-white hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-30"
+                        >
+                          <ArrowRight className="size-3.5" aria-hidden />
+                        </button>
+                      </div>
                       <button
                         type="button"
-                        disabled={pending || i === 0}
-                        title="Move earlier"
-                        onClick={() => galleryItemAction(i, "up")}
-                        className="rounded p-1 text-white hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-30"
+                        disabled={pending}
+                        title="Remove from gallery"
+                        onClick={() => galleryItemAction(i, "remove")}
+                        className="rounded-full bg-black/45 p-1 text-white hover:bg-secondary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                       >
-                        <ArrowLeft className="size-3.5" aria-hidden />
-                      </button>
-                      <button
-                        type="button"
-                        disabled={pending || i === galleryUrls.length - 1}
-                        title="Move later"
-                        onClick={() => galleryItemAction(i, "down")}
-                        className="rounded p-1 text-white hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-30"
-                      >
-                        <ArrowRight className="size-3.5" aria-hidden />
+                        <X className="size-3.5" aria-hidden />
                       </button>
                     </div>
-                    <button
-                      type="button"
-                      disabled={pending}
-                      title="Remove from gallery"
-                      onClick={() => galleryItemAction(i, "remove")}
-                      className="rounded p-1 text-white hover:bg-secondary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-                    >
-                      <Trash2 className="size-3.5" aria-hidden />
-                    </button>
+                  </div>
+                  <div className="space-y-2 p-3">
+                    <div className="grid grid-cols-[1fr_9.5rem] gap-2">
+                      <Input
+                        id={`gallery-title-${i}`}
+                        defaultValue={item.title}
+                        placeholder="Image title"
+                        className="h-9 text-xs"
+                      />
+                      <Input
+                        id={`gallery-date-${i}`}
+                        type="date"
+                        defaultValue={item.date}
+                        className="h-9 text-xs"
+                      />
+                    </div>
+                    <Input
+                      id={`gallery-caption-${i}`}
+                      defaultValue={item.caption}
+                      placeholder="Caption"
+                      className="h-9 text-xs"
+                    />
+                    <div className="flex justify-end">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={pending}
+                        onClick={() => saveGalleryMeta(i, item)}
+                      >
+                        Save details
+                      </Button>
+                    </div>
                   </div>
                 </li>
               ))}
@@ -429,10 +527,33 @@ export function BatchMediaPanel({
                     "Added to gallery.",
                   );
                   setGalleryUrlInput("");
+                  setGalleryTitleInput("");
+                  setGalleryDateInput("");
+                  setGalleryCaptionInput("");
                 }}
               >
                 <Link2 aria-hidden /> Add
               </Button>
+            </div>
+            <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-[1fr_9.5rem]">
+              <Input
+                value={galleryTitleInput}
+                onChange={(e) => setGalleryTitleInput(e.target.value)}
+                placeholder="Optional title"
+                className="h-9 text-sm"
+              />
+              <Input
+                value={galleryDateInput}
+                onChange={(e) => setGalleryDateInput(e.target.value)}
+                type="date"
+                className="h-9 text-sm"
+              />
+              <Input
+                value={galleryCaptionInput}
+                onChange={(e) => setGalleryCaptionInput(e.target.value)}
+                placeholder="Optional caption"
+                className="h-9 text-sm sm:col-span-2"
+              />
             </div>
           </div>
         </section>
@@ -452,14 +573,17 @@ export function BatchMediaPanel({
           <DialogHeader>
             <DialogTitle>
               <span className="inline-flex items-center gap-2">
-                <Crop className="size-4" /> Frame the hero photo
+                <Crop className="size-4" />{" "}
+                {cropTarget === "hero"
+                  ? "Frame the hero photo"
+                  : "Crop the gallery photo"}
               </span>
             </DialogTitle>
           </DialogHeader>
           {cropSrc && (
             <Cropper.Root
               image={cropSrc}
-              aspectRatio={HERO_ASPECT}
+              aspectRatio={cropAspect}
               cropPadding={0}
               zoom={cropZoom}
               onZoomChange={setCropZoom}
@@ -469,6 +593,24 @@ export function BatchMediaPanel({
               <Cropper.Image className="h-full w-full object-cover" />
               <Cropper.CropArea className="border-2 border-white/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.5)]" />
             </Cropper.Root>
+          )}
+          {cropTarget === "gallery" && (
+            <div className="flex flex-wrap gap-2 text-xs">
+              {[
+                ["4:3", GALLERY_DEFAULT_ASPECT],
+                ["1:1", 1],
+                ["Free", cropOriginalAspect],
+              ].map(([label, aspect]) => (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => setCropAspect(Number(aspect))}
+                  className="rounded border border-outline-variant/60 px-2 py-1 text-on-surface-variant hover:border-accent hover:text-accent"
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           )}
           <label className="flex items-center gap-3 text-xs text-on-surface-variant">
             Zoom
@@ -493,7 +635,7 @@ export function BatchMediaPanel({
             >
               Cancel
             </Button>
-            <Button type="button" disabled={pending} onClick={applyHeroCrop}>
+            <Button type="button" disabled={pending} onClick={applyCrop}>
               Apply crop
             </Button>
           </div>

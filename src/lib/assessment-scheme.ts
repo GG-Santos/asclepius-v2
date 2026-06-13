@@ -416,10 +416,8 @@ export const ASSESSMENT_SCHEME_TEMPLATES: SchemeTemplate[] = [
       ],
       ep: [assessment("eqe", "Equipment", 100, 80, "2025-06-22")],
       pas: [assessment("pa", "Patient Assessment", 300, 240, "2025-06-28")],
-      // CCT/CCM dates in the sheet are stale copies of Batch 10's (Oct 19/20,
-      // after this batch graduated) — left undated rather than recorded wrong.
-      ccst: [assessment("cct", "Critical Case Trauma", 100, 80)],
-      ccsm: [assessment("ccm", "Critical Case Medical", 100, 80)],
+      ccst: [assessment("cct", "Critical Case Trauma", 100, 80, "2025-06-29")],
+      ccsm: [assessment("ccm", "Critical Case Medical", 100, 80, "2025-06-29")],
       missingAsZero: true,
     }),
   },

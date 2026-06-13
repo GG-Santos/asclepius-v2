@@ -17,6 +17,7 @@ import {
 } from "@/app/dashboard/students/actions";
 import { BatchSelect } from "@/components/dashboard/batch-select";
 import { ConfirmDialog } from "@/components/dashboard/confirm-button";
+import { PrivateContactFields } from "@/components/dashboard/private-contact-fields";
 import { PromoteStudentDialog } from "@/components/dashboard/promote-student-dialog";
 import { SchemeGradeEntry } from "@/components/dashboard/scheme-grade-entry";
 import {
@@ -44,6 +45,13 @@ export type StudentDefaults = {
   middleName?: string;
   lastName?: string;
   suffix?: string;
+  phone?: string;
+  gender?: string;
+  streetAddress?: string;
+  city?: string;
+  province?: string;
+  country?: string;
+  mapsUrl?: string;
   batchCode?: string;
   // Periodic quiz raw scores, keyed by positional qN (count follows the batch).
   quizGrades?: Record<string, string>;
@@ -436,6 +444,8 @@ export function StudentForm({
                     />
                   </Labeled>
                 </div>
+
+                <PrivateContactFields defaults={defaults} />
               </div>
 
               {activeScheme ? (

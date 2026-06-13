@@ -4,20 +4,24 @@ import {
   BookOpen,
   Boxes,
   ChevronsUpDown,
+  ClipboardList,
   ExternalLink,
   FileText,
   FolderOpen,
   GraduationCap,
   LayoutDashboard,
+  LayoutTemplate,
   Library,
   LogOut,
   Settings,
-  ShieldCheck,
   ShieldUser,
   Users,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useState } from "react";
+import { AccountSettingsDialog } from "@/components/account/account-settings-dialog";
+import { StarOfLifeMark } from "@/components/brand/star-of-life-mark";
 import { Avatar } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -86,6 +90,18 @@ const GROUPS: NavGroup[] = [
       },
       { href: "/dashboard/blog", label: "Blog", icon: FileText },
       {
+        href: "/dashboard/site-content",
+        label: "Homepage CMS",
+        icon: LayoutTemplate,
+        adminOnly: true,
+      },
+      {
+        href: "/dashboard/forms",
+        label: "Forms",
+        icon: ClipboardList,
+        adminOnly: true,
+      },
+      {
         href: "/dashboard/models",
         label: "3D Models",
         icon: Boxes,
@@ -134,52 +150,60 @@ function NavUser({
   role: Role;
 }) {
   const router = useRouter();
+  const [settingsOpen, setSettingsOpen] = useState(false);
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger className="flex w-full items-center gap-2 rounded-lg p-2 text-left transition-colors hover:bg-surface-container focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent dark:hover:bg-white/[0.04]">
-        <Avatar
-          name={name}
-          className="bg-surface-container text-on-surface dark:bg-surface-high"
-        />
-        <div className="grid min-w-0 flex-1 leading-tight">
-          <span className="truncate text-sm font-medium text-on-surface">
-            {name}
-          </span>
-          <span className="truncate text-xs text-on-surface-variant">
-            {email}
-          </span>
-        </div>
-        <ChevronsUpDown className="size-4 text-on-surface-variant" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" side="top" className="w-60">
-        <DropdownMenuLabel>
-          <p className="text-sm font-medium text-on-surface">{name}</p>
-          <p className="text-xs capitalize text-on-surface-variant">{role}</p>
-        </DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
-          <Link href="/dashboard/settings">
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger className="flex w-full items-center gap-2 rounded-lg p-2 text-left transition-colors hover:bg-surface-container focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent dark:hover:bg-white/[0.04]">
+          <Avatar
+            name={name}
+            className="bg-surface-container text-on-surface dark:bg-surface-high"
+          />
+          <div className="grid min-w-0 flex-1 leading-tight">
+            <span className="truncate text-sm font-medium text-on-surface">
+              {name}
+            </span>
+            <span className="truncate text-xs text-on-surface-variant">
+              {email}
+            </span>
+          </div>
+          <ChevronsUpDown className="size-4 text-on-surface-variant" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" side="top" className="w-60">
+          <DropdownMenuLabel>
+            <p className="text-sm font-medium text-on-surface">{name}</p>
+            <p className="text-xs capitalize text-on-surface-variant">{role}</p>
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onSelect={() => setSettingsOpen(true)}>
             <Settings /> Account settings
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href="/" target="_blank">
-            <ExternalLink /> View public site
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          className="text-secondary focus:bg-secondary/10 [&_svg]:text-secondary"
-          onSelect={async () => {
-            await authClient.signOut();
-            router.push("/login");
-            router.refresh();
-          }}
-        >
-          <LogOut /> Sign out
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href="/" target="_blank">
+              <ExternalLink /> View public site
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            className="text-secondary focus:bg-secondary/10 [&_svg]:text-secondary"
+            onSelect={async () => {
+              await authClient.signOut();
+              router.push("/login");
+              router.refresh();
+            }}
+          >
+            <LogOut /> Sign out
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <AccountSettingsDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        name={name}
+        email={email}
+        role={role}
+      />
+    </>
   );
 }
 
@@ -205,7 +229,7 @@ export function DashboardSidebar({
       )}
     >
       <div className="flex h-16 items-center gap-2 px-5 font-semibold">
-        <ShieldCheck className="size-5 text-accent" aria-hidden />
+        <StarOfLifeMark className="size-5 text-accent" />
         <span>WSL EMS</span>
       </div>
 

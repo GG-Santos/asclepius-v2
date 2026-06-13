@@ -15,12 +15,16 @@ import {
   Stethoscope,
   XCircle,
 } from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
 import { CookiePreferencesLink } from "@/components/cookie-preferences-link";
 import { FadeIn } from "@/components/fade-in";
 import { PublicHeader } from "@/components/public-header";
+import { DotPattern } from "@/components/ui/dot-pattern";
+import { NumberTicker } from "@/components/ui/number-ticker";
+import { SparklesText } from "@/components/ui/sparkles-text";
 import { VerifySearch } from "@/components/verify-search";
+import { normalizeGalleryItems } from "@/lib/batch-gallery";
+import { getHomePageContent } from "@/lib/home-content";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -41,6 +45,7 @@ async function getLandingData() {
     testimonials,
     team,
     batchesWithLogos,
+    homeContent,
   ] = await Promise.all([
     prisma.graduate.count({
       where: {
@@ -74,11 +79,14 @@ async function getLandingData() {
       take: 8,
     }),
     prisma.batch.findMany({
-      where: { logoId: { not: null } },
+      where: {
+        OR: [{ logoId: { not: null } }, { heroImageUrl: { not: null } }],
+      },
       orderBy: { createdAt: "desc" },
       take: 12,
       include: { logo: true },
     }),
+    getHomePageContent(),
   ]);
   const latestBatchNo = batchList.reduce((mx, b) => {
     const m = (b.batchNumber ?? b.code).match(/(\d+)/);
@@ -102,6 +110,7 @@ async function getLandingData() {
     testimonials,
     team,
     batchesWithLogos,
+    homeContent,
   };
 }
 
@@ -115,6 +124,7 @@ export default async function Home() {
     testimonials,
     team,
     batchesWithLogos,
+    homeContent,
   } = await getLandingData();
 
   return (
@@ -124,6 +134,7 @@ export default async function Home() {
       <main className="flex-1">
         {/* ── HERO ─────────────────────────────────────────────────────── */}
         <section className="relative overflow-hidden bg-surface">
+          <DotPattern className="opacity-[0.22] [mask-image:linear-gradient(to_bottom,black,transparent_78%)]" />
           {/* Dark mode: ambient top-center glow — implies a light source above
               the headline without adding decorative noise. ~4% luminance only. */}
           <div
@@ -138,19 +149,18 @@ export default async function Home() {
             <FadeIn className="flex flex-col items-start">
               <span className="inline-flex items-center gap-2 rounded-full border border-outline-variant bg-card px-3 py-1 text-xs font-semibold uppercase tracking-widest text-accent dark:border-accent/25 dark:bg-accent/[0.06] dark:text-accent-bright dark:shadow-[var(--glow-accent-soft)]">
                 <ShieldCheck className="size-3.5" aria-hidden />
-                Official EMT Credential Registry
+                {homeContent.heroEyebrow}
               </span>
 
               <h1 className="mt-5 text-4xl font-extrabold leading-[1.07] tracking-tight text-on-surface md:text-6xl">
-                Verify an EMT&apos;s license{" "}
+                {homeContent.heroTitle}{" "}
                 <span className="text-primary dark:text-accent-bright">
-                  in seconds.
+                  {homeContent.heroAccent}
                 </span>
               </h1>
 
               <p className="mt-4 max-w-md text-lg leading-relaxed text-on-surface-variant">
-                The official registry of Emergency Medical Technicians trained
-                and certified at WSL EMS.
+                {homeContent.heroBody}
               </p>
 
               <div
@@ -182,7 +192,7 @@ export default async function Home() {
             </FadeIn>
 
             <FadeIn delay={120} className="flex justify-center md:justify-end">
-              <VerifiedSampleCard />
+              <HeroVisual imageUrl={homeContent.heroImageUrl} />
             </FadeIn>
           </div>
         </section>
@@ -190,16 +200,10 @@ export default async function Home() {
         {/* ── PROOF BAR (real data) ────────────────────────────────────── */}
         <section className="border-y border-outline-variant bg-surface-container dark:bg-surface-low dark:border-white/[0.06]">
           <div className="mx-auto grid w-full max-w-[1200px] grid-cols-2 md:grid-cols-4 md:divide-x md:divide-outline-variant">
+            <StatCell value={activeGraduates} label="Active graduates" />
+            <StatCell value={latestBatchNo} label="EMT Batches Trained" />
             <StatCell
-              value={activeGraduates.toLocaleString()}
-              label="Active graduates"
-            />
-            <StatCell
-              value={latestBatchNo.toLocaleString()}
-              label="EMT Batches Trained"
-            />
-            <StatCell
-              value={monthlyLookups.toLocaleString()}
+              value={monthlyLookups}
               label="Monthly verifications"
               boost={
                 lookupBoost != null && lookupBoost > 0
@@ -212,25 +216,23 @@ export default async function Home() {
         </section>
 
         {/* ── WHAT WSL EMS IS (trust explainer) ────────────────────────── */}
-        <section className="bg-surface dark:border-t dark:border-white/[0.06]">
+        <section
+          id="testimonials"
+          className="scroll-mt-24 bg-surface dark:border-t dark:border-white/[0.06]"
+        >
           <div className="mx-auto grid w-full max-w-[1200px] items-center gap-12 px-4 py-20 md:grid-cols-2 md:px-8">
             <FadeIn className="order-2 md:order-1">
               <p className="text-xs font-semibold uppercase tracking-widest text-accent">
-                What WSL EMS is
+                {homeContent.aboutEyebrow}
               </p>
               <h2 className="mt-2 text-3xl font-bold leading-snug tracking-tight text-on-surface md:text-4xl">
-                A training center — and the public record of its graduates.
+                {homeContent.aboutTitle}
               </h2>
               <p className="mt-4 text-base leading-relaxed text-on-surface-variant">
-                WSL EMS trains and certifies Emergency Medical Technicians. This
-                registry is the public record of everyone we&apos;ve certified,
-                so employers, agencies, and patients can confirm that a
-                responder holds a real, current credential.
+                {homeContent.aboutBodyOne}
               </p>
               <p className="mt-3 text-base leading-relaxed text-on-surface-variant">
-                Every technician completes written examinations, practical
-                skills evaluations, and supervised clinical training before a
-                license is issued.
+                {homeContent.aboutBodyTwo}
               </p>
               <div className="mt-6 flex flex-wrap gap-2">
                 {["Train", "Evaluate", "License", "Public registry"].map(
@@ -251,12 +253,11 @@ export default async function Home() {
 
             <FadeIn delay={120} className="order-1 md:order-2">
               <div className="relative aspect-[4/3] w-full overflow-hidden rounded-2xl border border-outline-variant shadow-clinical-md">
-                <Image
-                  src="/assets/img/generated/about-team.webp"
+                {/* biome-ignore lint/performance/noImgElement: admin-curated CMS image can be external */}
+                <img
+                  src={homeContent.aboutImageUrl}
                   alt="EMT trainees in a clinical simulation session at WSL EMS"
-                  fill
-                  className="object-cover"
-                  sizes="(max-width: 768px) 100vw, 540px"
+                  className="h-full w-full object-cover"
                 />
               </div>
             </FadeIn>
@@ -348,18 +349,29 @@ export default async function Home() {
             <FadeIn>
               <div className="mx-auto mb-12 max-w-xl text-center">
                 <p className="text-xs font-semibold uppercase tracking-widest text-accent">
-                  Programs &amp; training
+                  {homeContent.programsEyebrow}
                 </p>
                 <h2 className="mt-2 text-3xl font-bold tracking-tight text-on-surface md:text-4xl">
-                  ASHI-accredited EMS training, built for real emergencies.
+                  {homeContent.programsTitle}
                 </h2>
                 <p className="mt-3 text-base text-on-surface-variant">
-                  Every program is accredited by the American Safety &amp;
-                  Health Institute and evaluated by written exam, practical
-                  skills, and supervised clinical hours.
+                  {homeContent.programsBody}
                 </p>
               </div>
             </FadeIn>
+
+            {homeContent.programImageUrl && (
+              <FadeIn delay={80}>
+                <div className="mb-8 overflow-hidden rounded-xl border border-outline-variant shadow-clinical-md">
+                  {/* biome-ignore lint/performance/noImgElement: admin-curated CMS image can be external */}
+                  <img
+                    src={homeContent.programImageUrl}
+                    alt="WSL EMS program highlight"
+                    className="aspect-[16/5] w-full object-cover"
+                  />
+                </div>
+              </FadeIn>
+            )}
 
             <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
               <FadeIn delay={0}>
@@ -406,14 +418,23 @@ export default async function Home() {
             </div>
 
             <p className="mt-8 text-center text-sm text-on-surface-variant">
-              Cohort dates are managed by WSL EMS admissions.{" "}
-              <Link
-                href={APPLY_HREF}
-                className="font-semibold text-accent transition-colors hover:text-primary dark:hover:text-accent-bright"
-              >
-                Request the next intake schedule →
-              </Link>
+              Cohort dates are managed by WSL EMS admissions.
             </p>
+            {homeContent.upcomingShow === "true" &&
+            homeContent.upcomingProgram ? (
+              <div className="mt-8 flex justify-center">
+                <UpcomingProgramCard content={homeContent} />
+              </div>
+            ) : (
+              <p className="mt-4 text-center text-sm text-on-surface-variant">
+                <Link
+                  href={APPLY_HREF}
+                  className="font-semibold text-accent transition-colors hover:text-primary dark:hover:text-accent-bright"
+                >
+                  Request the next intake schedule →
+                </Link>
+              </p>
+            )}
           </div>
         </section>
 
@@ -453,13 +474,19 @@ export default async function Home() {
         <section className="bg-surface dark:border-t dark:border-white/[0.06]">
           <div className="mx-auto w-full max-w-[1200px] px-4 py-20 md:px-8">
             <FadeIn>
-              <div className="mx-auto mb-12 max-w-xl text-center">
+              <div className="mx-auto mb-12 flex max-w-xl flex-col items-center text-center">
                 <p className="text-xs font-semibold uppercase tracking-widest text-accent">
                   Graduate voices
                 </p>
                 <h2 className="mt-2 text-3xl font-bold tracking-tight text-on-surface md:text-4xl">
                   What our graduates say.
                 </h2>
+                <Link
+                  href="/testimonials"
+                  className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-accent transition-colors hover:text-primary dark:hover:text-accent-bright"
+                >
+                  View all testimonials <ArrowRight className="size-4" />
+                </Link>
               </div>
             </FadeIn>
             {testimonials.length > 0 ? (
@@ -495,25 +522,40 @@ export default async function Home() {
             {batchesWithLogos.length > 0 ? (
               <FadeIn delay={80}>
                 <div className="grid grid-cols-3 gap-4 sm:grid-cols-4 md:grid-cols-6">
-                  {batchesWithLogos.map((b) => (
-                    <Link
-                      key={b.id}
-                      href={`/cohorts/${b.id}`}
-                      className="group flex flex-col items-center gap-2"
-                    >
-                      {b.logo?.url && (
-                        // biome-ignore lint/performance/noImgElement: admin-uploaded blob logo on an arbitrary domain
-                        <img
-                          src={b.logo.url}
-                          alt={`${b.code} cohort logo`}
-                          className="size-20 rounded-xl border border-outline-variant bg-card object-contain p-2 transition-all group-hover:border-accent group-hover:shadow-clinical-md"
-                        />
-                      )}
-                      <span className="text-[11px] font-medium text-on-surface-variant group-hover:text-accent">
-                        {b.label ?? b.code}
-                      </span>
-                    </Link>
-                  ))}
+                  {batchesWithLogos.map((b) => {
+                    const gallery = normalizeGalleryItems(
+                      b.galleryItems,
+                      b.galleryUrls,
+                    );
+                    const thumb =
+                      b.logo?.url ?? b.heroImageUrl ?? gallery[0]?.url;
+                    return (
+                      <Link
+                        key={b.id}
+                        href={`/cohorts/${b.id}`}
+                        className="group flex flex-col items-center gap-2"
+                      >
+                        {thumb && (
+                          <span className="relative">
+                            {/* biome-ignore lint/performance/noImgElement: admin-uploaded media on arbitrary domains */}
+                            <img
+                              src={thumb}
+                              alt={`${b.code} cohort`}
+                              className="size-20 rounded-xl border border-outline-variant bg-card object-cover p-1.5 transition-all group-hover:border-accent group-hover:shadow-clinical-md"
+                            />
+                            {gallery.length > 0 && (
+                              <span className="-right-2 -top-2 absolute rounded-full bg-accent px-2 py-0.5 text-[10px] font-bold text-on-accent shadow-clinical">
+                                Gallery
+                              </span>
+                            )}
+                          </span>
+                        )}
+                        <span className="text-center text-[11px] font-medium text-on-surface-variant group-hover:text-accent">
+                          {b.label ?? b.code}
+                        </span>
+                      </Link>
+                    );
+                  })}
                 </div>
               </FadeIn>
             ) : (
@@ -608,11 +650,10 @@ export default async function Home() {
               <ShieldCheck className="size-7" aria-hidden />
             </span>
             <h2 className="mt-6 text-3xl font-bold tracking-tight md:text-4xl">
-              Confirm a credential — or start your own.
+              {homeContent.finalCtaTitle}
             </h2>
             <p className="mt-3 max-w-lg text-base text-white/70">
-              Verification is free, instant, and open to anyone. Training
-              enrollment is one message away.
+              {homeContent.finalCtaBody}
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Link
@@ -719,14 +760,14 @@ function StatCell({
   label,
   boost,
 }: {
-  value: string;
+  value: string | number;
   label: string;
   boost?: string;
 }) {
   return (
     <div className="px-6 py-8 text-center">
       <p className="tabular text-3xl font-extrabold tracking-tight text-primary dark:text-accent-bright md:text-4xl">
-        {value}
+        {typeof value === "number" ? <NumberTicker value={value} /> : value}
         {boost && (
           <span className="ml-2 inline-flex items-center rounded-full bg-success/10 px-2 py-0.5 align-middle text-xs font-bold text-success">
             ↑ {boost}
@@ -735,6 +776,71 @@ function StatCell({
       </p>
       <p className="mt-1.5 text-sm text-on-surface-variant">{label}</p>
     </div>
+  );
+}
+
+function HeroVisual({ imageUrl }: { imageUrl: string }) {
+  if (!imageUrl) return <VerifiedSampleCard />;
+  return (
+    <div className="relative aspect-[4/3] w-full max-w-md overflow-hidden rounded-2xl border border-outline-variant shadow-clinical-md">
+      {/* biome-ignore lint/performance/noImgElement: admin-curated CMS image can be external */}
+      <img
+        src={imageUrl}
+        alt="WSL EMS training and credentialing"
+        className="h-full w-full object-cover"
+      />
+    </div>
+  );
+}
+
+function UpcomingProgramCard({
+  content,
+}: {
+  content: {
+    upcomingProgram: string;
+    upcomingStartAt: string;
+    upcomingStatus: string;
+    upcomingCapacity: string;
+    upcomingCtaUrl: string;
+  };
+}) {
+  const href = content.upcomingCtaUrl || APPLY_HREF;
+  const date = content.upcomingStartAt
+    ? new Date(content.upcomingStartAt).toLocaleDateString("en-US", {
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+        timeZone: "UTC",
+      })
+    : "Date to be announced";
+  const capacity = content.upcomingCapacity
+    ? Number.parseInt(content.upcomingCapacity, 10)
+    : null;
+  const status = content.upcomingStatus
+    ? content.upcomingStatus.toLowerCase()
+    : "announced";
+
+  return (
+    <Link
+      href={href}
+      className="group flex w-full max-w-md items-center gap-4 rounded-xl border border-outline-variant bg-card p-4 text-left shadow-clinical transition-all hover:-translate-y-0.5 hover:border-accent hover:shadow-clinical-md"
+    >
+      <span className="flex size-16 shrink-0 items-center justify-center rounded-lg border border-outline-variant bg-surface text-lg font-bold text-accent">
+        {content.upcomingProgram.slice(0, 3).toUpperCase()}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-xs font-semibold uppercase tracking-widest text-accent">
+          {content.upcomingProgram}
+        </span>
+        <span className="mt-1 block text-sm text-on-surface-variant">
+          {date}
+          {capacity ? ` · ${capacity} seats` : ""}
+        </span>
+      </span>
+      <span className="shrink-0 rounded-full bg-surface-container px-2 py-0.5 text-[11px] font-semibold capitalize text-on-surface-variant">
+        {status}
+      </span>
+    </Link>
   );
 }
 
@@ -890,7 +996,7 @@ function ProgramCard({
             : "mt-4 inline-flex w-fit items-center rounded-full border border-outline-variant bg-surface px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant"
         }
       >
-        {tag}
+        {featured ? <SparklesText>{tag}</SparklesText> : tag}
       </span>
       <h3 className="mt-3 font-semibold leading-snug text-on-surface">
         {title}

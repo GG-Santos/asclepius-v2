@@ -5,6 +5,7 @@ import {
   ArrowRight,
   BookOpen,
   ChevronsUpDown,
+  ClipboardList,
   Contact,
   CornerDownLeft,
   ExternalLink,
@@ -14,18 +15,20 @@ import {
   Inbox,
   Layers,
   LayoutDashboard,
+  LayoutTemplate,
   Library,
   LogOut,
   Quote,
   Search,
   Settings,
-  ShieldCheck,
   ShieldUser,
   Users,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
+import { AccountSettingsDialog } from "@/components/account/account-settings-dialog";
+import { StarOfLifeMark } from "@/components/brand/star-of-life-mark";
 import { NavDocs } from "@/components/dashboard/nav-docs";
 import { Avatar } from "@/components/ui/avatar";
 import {
@@ -129,6 +132,18 @@ const GROUPS: NavGroup[] = [
         href: "/dashboard/assets",
         label: "Assets",
         icon: Layers,
+        adminOnly: true,
+      },
+      {
+        href: "/dashboard/site-content",
+        label: "Homepage CMS",
+        icon: LayoutTemplate,
+        adminOnly: true,
+      },
+      {
+        href: "/dashboard/forms",
+        label: "Forms",
+        icon: ClipboardList,
         adminOnly: true,
       },
     ],
@@ -326,63 +341,72 @@ function NavUser({
 }) {
   const router = useRouter();
   const { open } = useSidebar();
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        className={cn(
-          "flex w-full items-center gap-2 rounded-lg p-2 text-left transition-colors hover:bg-surface-container focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent dark:hover:bg-white/[0.04]",
-          !open && "justify-center",
-        )}
-      >
-        <Avatar
-          name={name}
-          src={image}
-          className="shrink-0 bg-surface-container text-on-surface dark:bg-surface-high"
-        />
-        {open && (
-          <div className="grid min-w-0 flex-1 leading-tight">
-            <span className="truncate text-sm font-medium text-on-surface">
-              {name}
-            </span>
-            <span className="truncate text-xs text-on-surface-variant">
-              {email}
-            </span>
-          </div>
-        )}
-        {open && (
-          <ChevronsUpDown className="size-4 shrink-0 text-on-surface-variant" />
-        )}
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" side="top" className="w-60">
-        <DropdownMenuLabel>
-          <p className="text-sm font-medium text-on-surface">{name}</p>
-          <p className="text-xs capitalize text-on-surface-variant">{role}</p>
-        </DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
-          <Link href="/dashboard/settings">
-            <Settings /> Account settings
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href="/" target="_blank">
-            <ExternalLink /> View public site
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          className="text-secondary focus:bg-secondary/10 [&_svg]:text-secondary"
-          onSelect={async () => {
-            await authClient.signOut();
-            router.push("/login");
-            router.refresh();
-          }}
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          className={cn(
+            "flex w-full items-center gap-2 rounded-lg p-2 text-left transition-colors hover:bg-surface-container focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent dark:hover:bg-white/[0.04]",
+            !open && "justify-center",
+          )}
         >
-          <LogOut /> Sign out
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+          <Avatar
+            name={name}
+            src={image}
+            className="shrink-0 bg-surface-container text-on-surface dark:bg-surface-high"
+          />
+          {open && (
+            <div className="grid min-w-0 flex-1 leading-tight">
+              <span className="truncate text-sm font-medium text-on-surface">
+                {name}
+              </span>
+              <span className="truncate text-xs text-on-surface-variant">
+                {email}
+              </span>
+            </div>
+          )}
+          {open && (
+            <ChevronsUpDown className="size-4 shrink-0 text-on-surface-variant" />
+          )}
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" side="top" className="w-60">
+          <DropdownMenuLabel>
+            <p className="text-sm font-medium text-on-surface">{name}</p>
+            <p className="text-xs capitalize text-on-surface-variant">{role}</p>
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onSelect={() => setSettingsOpen(true)}>
+            <Settings /> Account settings
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href="/" target="_blank">
+              <ExternalLink /> View public site
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            className="text-secondary focus:bg-secondary/10 [&_svg]:text-secondary"
+            onSelect={async () => {
+              await authClient.signOut();
+              router.push("/login");
+              router.refresh();
+            }}
+          >
+            <LogOut /> Sign out
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <AccountSettingsDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        name={name}
+        email={email}
+        role={role}
+        image={image}
+      />
+    </>
   );
 }
 
@@ -415,7 +439,7 @@ export function AppSidebar({
             open ? "min-w-0" : "p-3",
           )}
         >
-          <ShieldCheck className="size-5 shrink-0 text-accent" aria-hidden />
+          <StarOfLifeMark className="size-5 shrink-0 text-accent" />
           {open && <span className="truncate">WSL EMS</span>}
         </Link>
       </SidebarHeader>

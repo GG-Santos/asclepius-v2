@@ -120,7 +120,14 @@ model Batch {
   logo                MediaAsset? @relation(name: "BatchLogo", fields: [logoId], references: [id])
   logoId              String?     @db.ObjectId
   heroImageUrl        String? // public cohort hero (batch group photo)
-  galleryUrls         String[]    @default([]) // public cohort gallery, ordered
+  galleryUrls         String[]    @default([]) // legacy/cache: public cohort gallery URLs, ordered
+  galleryItems        Json? // structured gallery: [{ url,title,caption,date,order }]
+  intakePublic        Boolean     @default(false) // show upcoming intake on public pages
+  intakeStartAt       DateTime?
+  intakeStatus        String? // OPEN | WAITLIST | CLOSED | ANNOUNCED (validated in action layer)
+  intakeCapacity      Int?
+  intakeProgram       String?
+  intakeCtaUrl        String?
   // Per-batch quiz definitions: [{ key:"q1", label, max, passing }] (positional
   // qN keys keep granularGrades compatible). Null = legacy q1–q10 defaults.
   quizDefs            Json?
@@ -152,6 +159,13 @@ model Student {
   middleName String?
   lastName   String?
   suffix     String?
+  phone      String?
+  gender     String?
+  streetAddress String?
+  city       String?
+  province   String?
+  country    String?
+  mapsUrl    String?
 
   // Raw practical exam scores (not percentages).
   // Q1–Q10 quiz scores are in granularGrades JSON.
@@ -198,6 +212,13 @@ model Graduate {
   middleName String?
   lastName   String?
   suffix     String?
+  phone      String?
+  gender     String?
+  streetAddress String?
+  city       String?
+  province   String?
+  country    String?
+  mapsUrl    String?
 
   // Dates: kept as raw free-text (legacy formats vary) plus a best-effort parse.
   issuedRaw       String?
@@ -396,6 +417,18 @@ model TeamMember {
   @@map("team_member")
 }
 
+// Minimal homepage CMS overrides. Missing keys fall back to the hard-coded
+// current homepage content so rollout is non-breaking.
+model SiteContent {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  key       String   @unique // e.g. "homepage"
+  content   Json
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  @@map("site_content")
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // LMS — continuing education for active graduates
 //
@@ -417,6 +450,8 @@ model OrgSettings {
   licenseValidityYears    Int      @default(1) // bounds 1–10, validated in the action layer
   archiveGraceYears       Int      @default(2) // bounds 0–10
   activeTemplateVersionId String?  @db.ObjectId
+  qrConfig                Json?
+  signatureAssets         Json? // sanitized SVG signature assets [{ id,label,role,svgDataUrl,createdAt }]
   updatedAt               DateTime @updatedAt
   createdAt               DateTime @default(now())
 
@@ -435,4 +470,55 @@ model ArtifactTemplateVersion {
   createdAt DateTime @default(now())
 
   @@map("artifact_template_version")
+}
+
+enum PublicFormStatus {
+  DRAFT
+  PUBLISHED
+}
+
+enum PublicFormSubmissionStatus {
+  NEW
+  REVIEWING
+  APPROVED
+  REJECTED
+  ARCHIVED
+}
+
+model PublicForm {
+  id          String           @id @default(auto()) @map("_id") @db.ObjectId
+  slug        String           @unique
+  title       String
+  description String?
+  audience    String // GRADUATE_UPDATE | COURSE_ADMISSION | CONSENT | GENERAL
+  fields      Json // [{ id,label,type,required,options }]
+  consentText String?
+  status      PublicFormStatus @default(DRAFT)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  submissions PublicFormSubmission[]
+
+  @@index([status])
+  @@map("public_form")
+}
+
+model PublicFormSubmission {
+  id              String                     @id @default(auto()) @map("_id") @db.ObjectId
+  formId          String                     @db.ObjectId
+  form            PublicForm                 @relation(fields: [formId], references: [id], onDelete: Cascade)
+  status          PublicFormSubmissionStatus @default(NEW)
+  respondentName  String?
+  respondentEmail String?
+  graduateLcn     String?
+  data            Json
+  consentAccepted Boolean                    @default(false)
+  notes           String?
+  reviewedAt      DateTime?
+  createdAt       DateTime                   @default(now())
+  updatedAt       DateTime                   @updatedAt
+
+  @@index([formId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("public_form_submission")
 }

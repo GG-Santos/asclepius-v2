@@ -12,6 +12,16 @@ const TABS = [
     adminOnly: true,
   },
   {
+    href: "/dashboard/settings/signatures",
+    label: "Signatures",
+    adminOnly: true,
+  },
+  {
+    href: "/dashboard/settings/qr",
+    label: "QR",
+    adminOnly: true,
+  },
+  {
     href: "/dashboard/settings/expiry",
     label: "Expiry policy",
     adminOnly: true,
@@ -23,7 +33,7 @@ export function SettingsTabs({ isAdmin }: { isAdmin: boolean }) {
   return (
     <nav
       aria-label="Settings sections"
-      className="flex gap-1 border-b border-outline-variant/60 dark:border-white/[0.08]"
+      className="flex gap-1 overflow-x-auto border-b border-outline-variant/60 dark:border-white/[0.08]"
     >
       {TABS.filter((t) => isAdmin || !t.adminOnly).map((tab) => {
         const active =

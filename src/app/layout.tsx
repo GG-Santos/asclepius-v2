@@ -77,8 +77,10 @@ export default function RootLayout({
           // biome-ignore lint/security/noDangerouslySetInnerHtml: build-time constant, not user input
           dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP_SCRIPT }}
         />
-        <script
+        <Script
+          id="org-jsonld"
           type="application/ld+json"
+          strategy="beforeInteractive"
           // biome-ignore lint/security/noDangerouslySetInnerHtml: JSON-LD structured data, not user input
           dangerouslySetInnerHTML={{ __html: JSON.stringify(orgJsonLd) }}
         />

@@ -7,6 +7,12 @@ import {
   parseGradingScheme,
   proficiencyRowsFromScheme,
 } from "@/lib/assessment-scheme";
+import {
+  buildGalleryItem,
+  galleryItemsToJson,
+  galleryUrlsFromItems,
+  normalizeGalleryItems,
+} from "@/lib/batch-gallery";
 import { gradeStudentForBatch, rollupForBatch } from "@/lib/grading";
 import { isLegacyBatch, parseProficiencyRows } from "@/lib/graduate";
 import { getExpiryPolicy } from "@/lib/org-settings";
@@ -143,13 +149,16 @@ export async function updateBatch(formData: FormData): Promise<void> {
   await requireAdmin();
   const id = String(formData.get("id") ?? "");
   if (!id) return;
-  const batchNumber = String(formData.get("batchNumber") ?? "").trim() || null;
-  const label = String(formData.get("label") ?? "").trim();
-  const professor = String(formData.get("professor") ?? "").trim() || null;
-  const description = String(formData.get("description") ?? "").trim() || null;
-  const logoAssetId = String(formData.get("logoAssetId") ?? "").trim() || null;
+  const parsed = batchSchema.omit({ code: true, year: true }).safeParse({
+    batchNumber: formData.get("batchNumber"),
+    label: formData.get("label"),
+    professor: formData.get("professor"),
+    description: formData.get("description"),
+  });
+  if (!parsed.success) return;
+  const { batchNumber, label, professor, description } = parsed.data;
   const professorId = String(formData.get("professorId") ?? "").trim() || null;
-  let professorName = professor;
+  let professorName: string | null | undefined = professor;
   if (professorId && !professorName) {
     const u = await prisma.user.findUnique({
       where: { id: professorId },
@@ -162,15 +171,32 @@ export async function updateBatch(formData: FormData): Promise<void> {
     where: { id },
     data: {
       batchNumber,
-      label: label || null,
+      label: label ?? null,
       professor: professorName,
       professorId,
-      description,
-      ...(logoAssetId ? { logoId: logoAssetId } : {}),
+      description: description ?? null,
     },
   });
   revalidatePath("/dashboard/batches");
   revalidatePath(`/dashboard/batches/${id}`);
+  revalidatePath(`/cohorts/${id}`);
+  revalidatePath("/");
+}
+
+export async function updateBatchLogo(
+  batchId: string,
+  logoAssetId: string | null,
+): Promise<void> {
+  await requireAdmin();
+  if (!batchId) return;
+  await prisma.batch.update({
+    where: { id: batchId },
+    data: { logoId: logoAssetId },
+  });
+  revalidatePath(`/dashboard/batches/${batchId}/edit`);
+  revalidatePath(`/dashboard/batches/${batchId}`);
+  revalidatePath(`/cohorts/${batchId}`);
+  revalidatePath("/");
 }
 
 export async function deleteBatch(formData: FormData): Promise<void> {
@@ -365,6 +391,13 @@ export async function markBatchGraduated(
           middleName: s.middleName,
           lastName: s.lastName,
           suffix: s.suffix,
+          phone: s.phone,
+          gender: s.gender,
+          streetAddress: s.streetAddress,
+          city: s.city,
+          province: s.province,
+          country: s.country,
+          mapsUrl: s.mapsUrl,
           ...scores,
           issuedAt: graduatedAt,
           issuedRaw: fmtDate(graduatedAt),
@@ -422,7 +455,12 @@ export type BatchMediaState = { ok?: boolean; error?: string };
 /** Converts a thrown Prisma/update failure into an actionable message. */
 function mediaUpdateError(e: unknown): BatchMediaState {
   const msg = e instanceof Error ? e.message : "";
-  if (msg.includes("Unknown argument") || msg.includes("heroImageUrl")) {
+  if (
+    msg.includes("Unknown argument") ||
+    msg.includes("heroImageUrl") ||
+    msg.includes("galleryItems") ||
+    msg.includes("intake")
+  ) {
     return {
       error:
         "Could not save — the server is running an outdated database client. Restart the dev server and try again.",
@@ -455,6 +493,7 @@ export async function setBatchHero(
   }
   revalidatePath(`/dashboard/batches/${id}`);
   revalidatePath(`/cohorts/${id}`);
+  revalidatePath("/");
   return { ok: true };
 }
 
@@ -471,24 +510,85 @@ export async function addBatchGalleryImage(
 
   const batch = await prisma.batch.findUnique({
     where: { id },
-    select: { galleryUrls: true },
+    select: { galleryUrls: true, galleryItems: true },
   });
   if (!batch) return { error: "Batch not found." };
-  if (batch.galleryUrls.includes(parsed.data))
+  const items = normalizeGalleryItems(batch.galleryItems, batch.galleryUrls);
+  if (items.some((item) => item.url === parsed.data))
     return { error: "That image is already in the gallery." };
-  if (batch.galleryUrls.length >= GALLERY_CAP)
+  if (items.length >= GALLERY_CAP)
     return { error: `Gallery is full (${GALLERY_CAP} images max).` };
 
+  const next = [
+    ...items,
+    buildGalleryItem({
+      url: parsed.data,
+      title: String(formData.get("title") ?? ""),
+      caption: String(formData.get("caption") ?? ""),
+      date: String(formData.get("date") ?? ""),
+      order: items.length,
+    }),
+  ];
   try {
     await prisma.batch.update({
       where: { id },
-      data: { galleryUrls: [...batch.galleryUrls, parsed.data] },
+      data: {
+        galleryUrls: galleryUrlsFromItems(next),
+        galleryItems: galleryItemsToJson(next),
+      },
     });
   } catch (e) {
     return mediaUpdateError(e);
   }
   revalidatePath(`/dashboard/batches/${id}`);
   revalidatePath(`/cohorts/${id}`);
+  revalidatePath("/");
+  return { ok: true };
+}
+
+/** Updates title/caption/date metadata for one gallery image. */
+export async function updateBatchGalleryImage(
+  formData: FormData,
+): Promise<BatchMediaState> {
+  await requireAdmin();
+  const id = String(formData.get("id") ?? "");
+  const index = Number(formData.get("index"));
+  if (!id || !Number.isInteger(index)) return { error: "Invalid request." };
+
+  const batch = await prisma.batch.findUnique({
+    where: { id },
+    select: { galleryUrls: true, galleryItems: true },
+  });
+  if (!batch) return { error: "Batch not found." };
+  const items = normalizeGalleryItems(batch.galleryItems, batch.galleryUrls);
+  if (index < 0 || index >= items.length) return { error: "Image not found." };
+
+  const next = items.map((item, i) =>
+    i === index
+      ? buildGalleryItem({
+          ...item,
+          title: String(formData.get("title") ?? ""),
+          caption: String(formData.get("caption") ?? ""),
+          date: String(formData.get("date") ?? ""),
+          order: i,
+        })
+      : item,
+  );
+
+  try {
+    await prisma.batch.update({
+      where: { id },
+      data: {
+        galleryUrls: galleryUrlsFromItems(next),
+        galleryItems: galleryItemsToJson(next),
+      },
+    });
+  } catch (e) {
+    return mediaUpdateError(e);
+  }
+  revalidatePath(`/dashboard/batches/${id}`);
+  revalidatePath(`/cohorts/${id}`);
+  revalidatePath("/");
   return { ok: true };
 }
 
@@ -503,19 +603,29 @@ export async function removeBatchGalleryImage(
 
   const batch = await prisma.batch.findUnique({
     where: { id },
-    select: { galleryUrls: true },
+    select: { galleryUrls: true, galleryItems: true },
   });
-  if (!batch || index < 0 || index >= batch.galleryUrls.length)
+  const items = batch
+    ? normalizeGalleryItems(batch.galleryItems, batch.galleryUrls)
+    : [];
+  if (!batch || index < 0 || index >= items.length)
     return { error: "Image not found." };
 
-  const next = batch.galleryUrls.filter((_, i) => i !== index);
+  const next = items.filter((_, i) => i !== index);
   try {
-    await prisma.batch.update({ where: { id }, data: { galleryUrls: next } });
+    await prisma.batch.update({
+      where: { id },
+      data: {
+        galleryUrls: galleryUrlsFromItems(next),
+        galleryItems: galleryItemsToJson(next),
+      },
+    });
   } catch (e) {
     return mediaUpdateError(e);
   }
   revalidatePath(`/dashboard/batches/${id}`);
   revalidatePath(`/cohorts/${id}`);
+  revalidatePath("/");
   return { ok: true };
 }
 
@@ -531,24 +641,32 @@ export async function moveBatchGalleryImage(
 
   const batch = await prisma.batch.findUnique({
     where: { id },
-    select: { galleryUrls: true },
+    select: { galleryUrls: true, galleryItems: true },
   });
   if (!batch) return { error: "Batch not found." };
+  const items = normalizeGalleryItems(batch.galleryItems, batch.galleryUrls);
   const j = dir === "up" ? index - 1 : index + 1;
-  if (index < 0 || index >= batch.galleryUrls.length) {
+  if (index < 0 || index >= items.length) {
     return { error: "Image not found." };
   }
-  if (j < 0 || j >= batch.galleryUrls.length) return { ok: true };
+  if (j < 0 || j >= items.length) return { ok: true };
 
-  const next = batch.galleryUrls.slice();
+  const next = items.slice();
   [next[index], next[j]] = [next[j], next[index]];
   try {
-    await prisma.batch.update({ where: { id }, data: { galleryUrls: next } });
+    await prisma.batch.update({
+      where: { id },
+      data: {
+        galleryUrls: galleryUrlsFromItems(next),
+        galleryItems: galleryItemsToJson(next),
+      },
+    });
   } catch (e) {
     return mediaUpdateError(e);
   }
   revalidatePath(`/dashboard/batches/${id}`);
   revalidatePath(`/cohorts/${id}`);
+  revalidatePath("/");
   return { ok: true };
 }
 

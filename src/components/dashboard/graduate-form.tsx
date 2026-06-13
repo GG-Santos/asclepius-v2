@@ -16,6 +16,7 @@ import { deleteGraduate } from "@/app/dashboard/graduates/actions";
 import { BatchSelect } from "@/components/dashboard/batch-select";
 import { ConfirmDialog } from "@/components/dashboard/confirm-button";
 import { GradeCells } from "@/components/dashboard/grade-cells";
+import { PrivateContactFields } from "@/components/dashboard/private-contact-fields";
 import { SchemeGradeEntry } from "@/components/dashboard/scheme-grade-entry";
 import {
   type PhotoStaging,
@@ -35,6 +36,13 @@ export type GraduateDefaults = {
   middleName?: string;
   lastName?: string;
   suffix?: string;
+  phone?: string;
+  gender?: string;
+  streetAddress?: string;
+  city?: string;
+  province?: string;
+  country?: string;
+  mapsUrl?: string;
   batchCode?: string;
   status?: string;
   legacy?: boolean;
@@ -364,6 +372,8 @@ export function GraduateForm({
                   />
                 </Labeled>
               </div>
+
+              <PrivateContactFields defaults={defaults} />
 
               <Labeled label="Date of Issuance">
                 <DatePicker

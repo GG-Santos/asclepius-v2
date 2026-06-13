@@ -1,57 +1,7 @@
 import { LayoutDashboard, Search } from "lucide-react";
 import Link from "next/link";
+import { StarOfLifeMark } from "@/components/brand/star-of-life-mark";
 import { getSession } from "@/lib/session";
-
-function StarOfLifeIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 40 40"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      className={className}
-      aria-hidden="true"
-    >
-      {/* Six-arm Star of Life */}
-      <rect x="15" y="2" width="10" height="36" rx="3" fill="currentColor" />
-      <rect
-        x="15"
-        y="2"
-        width="10"
-        height="36"
-        rx="3"
-        fill="currentColor"
-        transform="rotate(60 20 20)"
-      />
-      <rect
-        x="15"
-        y="2"
-        width="10"
-        height="36"
-        rx="3"
-        fill="currentColor"
-        transform="rotate(120 20 20)"
-      />
-      {/* Medical staff-and-serpent detail */}
-      <rect
-        x="19"
-        y="10"
-        width="2"
-        height="20"
-        rx="1"
-        fill="white"
-        opacity="0.9"
-      />
-      <path
-        d="M19 14 Q23 17 19 20 Q15 23 19 26"
-        stroke="white"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        fill="none"
-        opacity="0.9"
-      />
-    </svg>
-  );
-}
 
 // Auth-aware public site header — light institutional. Signed-in staff get a
 // Dashboard link; the public gets a persistent "Verify a license" action.
@@ -67,7 +17,7 @@ export async function PublicHeader({
     <header className="sticky top-0 z-30 border-b border-outline-variant bg-surface/85 backdrop-blur-sm">
       <div className="mx-auto flex h-16 w-full max-w-[1200px] items-center justify-between px-4 md:px-8">
         <Link href="/" className="flex items-center gap-2.5">
-          <StarOfLifeIcon className="size-8 shrink-0 text-primary dark:text-accent-bright" />
+          <StarOfLifeMark className="size-8 shrink-0" />
           <span className="flex flex-col leading-none">
             <span className="text-sm font-extrabold tracking-tight text-primary dark:text-accent-bright">
               WSL EMS

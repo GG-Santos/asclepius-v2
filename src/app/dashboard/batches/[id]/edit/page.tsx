@@ -192,6 +192,7 @@ export default async function EditBatchPage({
         batchId={batch.id}
         heroImageUrl={batch.heroImageUrl ?? null}
         galleryUrls={batch.galleryUrls ?? []}
+        galleryItems={batch.galleryItems ?? null}
         assets={imageAssets}
       />
     </div>

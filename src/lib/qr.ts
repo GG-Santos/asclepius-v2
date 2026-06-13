@@ -1,6 +1,14 @@
 import "server-only";
 import { headers } from "next/headers";
 import QRCode from "qrcode";
+import { getQrConfig, type QrErrorCorrection } from "@/lib/qr-config";
+
+type QrRenderOptions = {
+  width?: number;
+  dark?: string;
+  light?: string;
+  errorCorrectionLevel?: QrErrorCorrection;
+};
 
 /** Absolute origin of the current request (protocol + host). */
 export async function getOrigin(): Promise<string> {
@@ -15,37 +23,33 @@ export async function getOrigin(): Promise<string> {
 /** Data-URL PNG QR code for a verification link to the given license. */
 export async function verifyQrDataUrl(
   lcn: string,
-  opts?: {
-    width?: number;
-    dark?: string;
-    light?: string;
-    errorCorrectionLevel?: "L" | "M" | "Q" | "H";
-  },
+  opts?: QrRenderOptions,
 ): Promise<string> {
   const origin = await getOrigin();
+  const config = await getQrConfig();
   const url = `${origin}/verify/${encodeURIComponent(lcn)}`;
   return QRCode.toDataURL(url, {
-    width: opts?.width ?? 240,
+    width: opts?.width ?? config.size,
     margin: 1,
     // Generated bitmap, not CSS: dark-on-white for scanner contrast
     // (mode-invariant by design — QR backings stay white).
     color: {
-      dark: opts?.dark ?? "#18181b",
-      light: opts?.light ?? "#ffffff",
+      dark: opts?.dark ?? config.foreground,
+      light: opts?.light ?? config.background,
     },
-    errorCorrectionLevel: opts?.errorCorrectionLevel ?? "M",
+    errorCorrectionLevel:
+      opts?.errorCorrectionLevel ?? config.errorCorrectionLevel,
   });
 }
 
 /**
- * QR variant embedded in the certificate artwork: brand-navy modules and
- * ECC level H (30% recovery) because the design overlays a logo on the QR
- * center — the covered modules must stay recoverable.
+ * QR variant embedded in certificate artwork. It uses org colors, but forces
+ * ECC level H (30% recovery) because template designs may overlay a logo on
+ * the QR center — the covered modules must stay recoverable.
  */
 export function certificateQrDataUrl(lcn: string): Promise<string> {
   return verifyQrDataUrl(lcn, {
     width: 786,
-    dark: "#0d1671",
     errorCorrectionLevel: "H",
   });
 }

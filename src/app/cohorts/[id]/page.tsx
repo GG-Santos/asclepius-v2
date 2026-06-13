@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CohortGallery } from "@/components/cohort-gallery";
 import { PublicHeader } from "@/components/public-header";
+import { normalizeGalleryItems } from "@/lib/batch-gallery";
 import {
   displayName,
   type VerificationState,
@@ -52,7 +53,10 @@ export default async function CohortPage({
   // Tolerate a stale Prisma client (fields added recently; dev server may not
   // have reloaded) and legacy documents without the media fields.
   const heroImageUrl = batch.heroImageUrl ?? null;
-  const galleryUrls = batch.galleryUrls ?? [];
+  const galleryItems = normalizeGalleryItems(
+    batch.galleryItems,
+    batch.galleryUrls ?? [],
+  );
   const grads = batch.graduates.map((g) => ({
     id: g.id,
     lcn: g.lcn,
@@ -132,13 +136,13 @@ export default async function CohortPage({
           </section>
         )}
 
-        {galleryUrls.length > 0 && (
+        {galleryItems.length > 0 && (
           <section className="mx-auto w-full max-w-[1000px] px-4 pt-12 md:px-8">
             <h2 className="mb-4 text-sm font-semibold uppercase tracking-widest text-on-surface-variant">
               Gallery
             </h2>
             <CohortGallery
-              images={galleryUrls}
+              items={galleryItems}
               cohortName={batch.label ?? title}
             />
           </section>

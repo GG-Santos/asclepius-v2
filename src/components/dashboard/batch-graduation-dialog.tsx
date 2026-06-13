@@ -9,6 +9,7 @@ import {
   markBatchGraduated,
   previewBatchGraduation,
 } from "@/app/dashboard/batches/actions";
+import { fireGraduationConfetti } from "@/components/dashboard/graduation-confetti";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -59,6 +60,7 @@ export function BatchGraduationDialog({
       const res = await markBatchGraduated(fd);
       if (res.ok) {
         toast.success("Batch graduated.");
+        fireGraduationConfetti();
         setOpen(false);
         router.refresh();
       } else {
